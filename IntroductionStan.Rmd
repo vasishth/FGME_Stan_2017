@@ -1,0 +1,910 @@
+# Introduction to Stan probabilistic language
+
+Stan is a probabilistic programming language for statistical inference written
+in C++ that can be accessed through several interfaces (e.g., R, Python,
+Matlab, etc.). We will focus on the package `rstan` that integrates Stan
+to R. In Stan, we first define how the structure of the data looks like, the parameters we want
+to estimate, and then the priors  and likelihood. Stan uses a variant of
+Hamiltonian Monte Carlo (HMC), called No-U-Turn sampler (NUTS), which is much
+more efficient than our handcrafted Metropolis sampler, and also than the traditional Gibbs
+sampler used in other probabilistic languages such as (Win)BUGS [@lunn2000winbugs] and JAGS [@plummer2016jags].
+
+<!-- Hoffman, M. D. and Gelman, A. (2011). The no-U-turn sampler: Adaptively setting
+path lengths in Hamiltonian Monte Carlo. arXiv, 1111.4246. xi, 25, 118, 171, 316,
+391, 394
+Hoffman, M. D. and Gelman, A. (2014). The No-U-Turn Sampler: Adaptively Setting
+Path Lengths in Hamiltonian Monte Carlo. Journal of Machine Learning Research,
+15:1593–1623. xii, 25, 118, 171, 316, 389, 390, 391, 394
+ -->
+
+## A Stan program
+
+A Stan program is usually saved as a `.stan` file and accessed through R (or
+other interfaces) and it is organized into a sequence of optional and
+obligatory blocks, which must be written in order.
+
+
+```
+functions {
+// This is an optional block used for functions that can be used in other blocks.
+}
+data {
+// Obligatory block that specifies the required data for the model.
+}
+transformed data {
+// Optional block if we want to manipulate the data.
+}
+parameters {
+// Obligatory block that specifies the model's parameters.
+}
+transformed parameters {
+// Optional block if we want to manipulate the parameters (re-parametrize the model).
+}
+model {
+// Obligatory block that specifies the model's likelihood and priors.
+}
+generated quantities {
+// Optional block if we want to manipulate the output of our model.
+}
+```
+
+A big difference compared to R is that every variable used needs to be
+declared first with its type (real, integer, vector, matrix, etc.).  There are
+more types, but we'll start using the following ones. Another difference from R is that there must be a semi-colon (`;`) at the end of each line.
+
+* If a variable `mu` is going to contain a real number, either positive or negative, we define it like this:
+
+`real mu;`
+
+* If a variable `X` is going to contain a real number that is bounded between two numbers (or by only one), we can add `lower` and/or `upper` to the declaration. Suppose `X` is some type of measurement that can only be between 0 and 1000. (We can add lower and/or upper to any type.)
+
+<!-- see Lena's notes to make it clearer -->
+
+`real<lower = 0, upper = 1000>  X;`
+
+* If `N` is going to contain integers, such as the number of observations (which should be $>0$):
+
+`int<lower = 0>  N;`
+
+* If `Y` is a going to contain multiple real values, we define it as a vector, and we need to define the number of elements that it will contain. This number can be a variable that was defined earlier (such as `N`, the number of observations, in our example). We can optionally specify a lower boundary for all the values inside the vector. (In Stan, the values inside a vector are always *real*.)
+
+`vector<lower = 0> [N] Y;`
+
+
+
+## A first example \label{sec:first}
+
+As a first example, we will look at the analytical example from Session 09. Recall that we wanted to study whether comprehension of non-canonical sentences in individuals with aphasia is at chance level. The data showed 46 correct responses out of 100. Save this as `firstmodel.stan` (don't run it in R).
+
+```{r firstmodel_stan_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("firstmodel.stan"), sep = "\n")  
+```
+
+Use the following code to call the model from R. We first load the package `rstan`, and then we tell it that we want to save the models we compiled (this will speed up things), and that we want to run the chains in parallel using all the computer cores. (You may want to use all the cores but one, especially if you plan to use your computer while fitting models.) Then we need to save the data as a `list`, before fitting the model with it. In this simple case, the data is just the number of correct answers, and the total number of observations. We'll skip the fake data simulation for now. But see Exercise \ref{ex:first-fake}.
+
+
+```{r, message=F, warning=F}
+library(rstan)
+# Save compiled models:
+rstan_options(auto_write = TRUE)
+# Parallelize the chains using all the cores:
+options(mc.cores = parallel::detectCores())  
+# options(mc.cores = parallel::detectCores() - 1) # If you want to have an extra core free
+
+# Create a list:
+qresp_data <-  list(c = 46, 
+                    N = 100)
+# Fit the model with the default values of number of chains and iterations
+# chains = 4,    iter = 2000
+fit <- stan(file = 'firstmodel.stan', data = qresp_data)  
+```
+
+
+We can see a summary of the posterior by "printing" the model's fit.
+
+```{r}
+print(fit, pars=c("theta"))
+```
+
+The summary displayed by `print`  includes means,  standard  deviations  (`sd`),  quantiles,  Monte
+Carlo standard errors (`se_mean`), split Rhats, and effective sample sizes (`n_eff`).  The summaries
+are computed after removing the warmup  and merging together all chains. Notice that the `se_mean` is unrelated to the `se` of an estimate in the parallel frequentist model.  We will see later how to communicate the posterior distribution.
+
+
+And we should also inspect the chains, see the next section:
+
+```{r, fig.height=2}
+traceplot(fit, pars=c("theta"))
+```
+
+
+## MCMC diagnostics: Convergence problems and Stan warnings
+
+
+
+Before inferring anything from a model, we need to assess convergence. The most important checks or MCMC diagnostics are the following:
+
+
+* The chains should look like a straight "fat hairy caterpillar": the chains should
+  bounce around the same values and with the same variance.
+* The potential scale reduction factors, $\hat{R}$s, of the parameters should
+  be close to one (as a rule of thumb less than $1.1$).  This indicates that
+  the chains have mixed and they are traversing the same distribution.
+  $\hat{R}$s are printed in `rstan` summary in the column `Rhat` [see
+  section 11.4 of @GelmanEtAl2014].
+* The effective sample size, $n_{eff}$ should be large enough. The effective
+  sample size is an estimate of the number of independent draws from the
+  posterior distribution. Since the samples are not independent, $n_{eff}$
+  will generally be smaller than the total number of samples, $N$.  How large
+  $n_{eff}$ should be depends on the summary statistics that we want to use.
+  But as a rule of thumb, $n_{eff}/N > 0.1$.
+* There are no (important) warnings, such as, divergent transitions, Bayesian
+  fraction of missing information (BFMI) that was too low, etc. These warning may
+  indicate that the sampler is not adequately exploring  the parameter space.
+  See also http://mc-stan.org/misc/warnings.html
+
+For useful graphical checks see https://cran.r-project.org/web/packages/bayesplot/vignettes/MCMC-diagnostics.html
+
+These issues **should not be ignored**! See the Appendix \ref{sec:Appendix} for some troubleshooting ideas to solve them.
+
+
+## A small experiment \label{sec:small}
+
+Now we will focus on a more interesting example. We will fit the same data
+that we used in the Exercises from the previous session, but this time with Stan. The file \verb|1.dat| contains data of a subject (actually, me) pressing the space bar without reading in a self-paced reading experiment.
+
+### Preprocessing the data
+
+You should have done this already:
+
+```{r, reading_noreading}
+noreading_data <- read.table(header = F,"data/1.dat",encoding="latin1")
+noreading_data <- noreading_data[c("V2","V3","V5","V6","V8")]
+colnames(noreading_data) <- c("type","item","wordn","word","RT")
+tail(noreading_data)
+summary(noreading_data$RT)
+class(noreading_data)
+```
+
+We can't use the `data.frame`, and we need to transform it to a `list`.
+
+```{r, noreading_list}
+# We save the RTs of each row, and also the total number of observations N.
+
+noreading_list <-  list(Y = noreading_data$RT, 
+                    N = length(noreading_data$RT))
+```
+
+### Probability model
+
+
+Let's model the data with the following assumptions:
+
+- There is a true underlying time, $\mu$, that the participant needs to press the space-bar.
+- There is some noise in this process.
+- The noise is normally distributed.
+
+This means that the likelihood for each observation $i$ will be:
+
+\begin{equation}
+\begin{aligned}
+y_i \sim Normal(\mu, \sigma)
+\end{aligned}
+\end{equation}
+
+where $i =1 \ldots N$
+
+And we are going to use the following priors:
+\begin{equation}
+\begin{aligned}
+\mu &\sim Normal(0, 2000) \\
+\sigma &\sim Normal(0, 500) \text{ truncated so that } \sigma > 0
+\end{aligned}
+\end{equation}
+
+The prior for $\mu$ is encoding the following information: The model expects
+that the underlying time could be both positive and negative, and given that
+the scale of the prior (in this case the standard deviation of the normal
+distribution) is 2000, we are $\approx 68\%$ certain that the true value would
+be between 2000 ms and -2000 ms and $\approx 95\%$ certain that it would be
+between -4000 ms and 4000 ms (two standard deviations away from zero). But we
+obviously know that the time can't be negative! So we have more prior
+information than what we are using for informing the model. We'll discuss this
+later. Regarding the prior for $\sigma$: It must be positive, and we are
+$\approx 68\%$ certain that the true value would be between 0 ms and 500 ms
+and $\approx 95\%$ certain that it would be between 0 ms and 1000 ms.
+
+This can be translated to Stan in the following way:
+
+
+
+```{r no_reading_1_stan_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("noreading_1.stan"), sep = "\n") 
+```
+
+Save it as ```no_reading_1.stan```.
+
+### Running the Stan model
+
+This is the same probabilistic model that we implemented with our handcrafted
+Metropolis sampler in 1.2.1.2. Before we fit it to our real data, let's verify
+what happens with fake data.
+
+```{r, fake_data}
+set.seed(123)
+N <- 500
+true_mu <- 400
+true_sigma <- 125
+RT <- rnorm(N, true_mu, true_sigma)
+
+RT <- round(RT) 
+fake_list <- list(Y=RT,N=N)
+
+```
+
+
+```{r fit_fake, message=FALSE, warning=FALSE, results="hide"}
+fit_fake <- stan(file = 'noreading_1.stan',  data = fake_list)            
+
+```
+
+We see that Stan is much more efficient than our homemade sampler, it converges with fewer iterations:
+
+```{r traceplot_fit_fake, fig.height=2}
+traceplot(fit_fake)
+
+```
+
+And we get approximately the same posteriors:
+
+```{r}
+print(fit_fake, probs =c(.025,.5,.975), pars=c("mu","sigma"))
+```
+
+
+The successful recovery of the parameters means that the model is behaving as expected, now we can see what happens with real data:
+
+```{r, message=FALSE, warning=FALSE, results="hide"}
+fit_noreading <- stan(file = 'noreading_1.stan', 
+    data = noreading_list)            
+```
+
+```{r }
+
+print(fit_noreading, probs =c(.025,.5,.975), pars=c("mu","sigma"))
+
+```
+
+```{r, fig.height=2}
+traceplot(fit_noreading)
+```
+
+
+
+
+### Summarizing the posterior
+
+The package `bayesplot` provides very convenient plot functions (based on `ggplot2`). See the vignettes in 
+https://cran.r-project.org/web/packages/bayesplot/index.html
+
+```{r noreading_plot, fig.height=2, message=F}
+library(bayesplot)
+# We need to first extract the chains:
+post_noreading <- as.array(fit_noreading)
+dimnames(post_noreading)
+# And then we can plot them:
+mcmc_hist(post_noreading, pars = c("mu", "sigma"))
+```
+
+
+
+
+\begin{nbox}{The posterior distribution of $\mu$ is not the distribution of RTs!}
+We are assuming that there's a true underlying time it takes to press the space bar, $\mu$, and there is normally distributed noise that generates the different RTs. This is encoded in our likelihood by assuming that RTs are distributed with an unknown true mean $\mu$ (and an unknown standard deviation $\sigma$). The objective of the Bayesian model is to learn about the possible values of $\mu$, or in other words, to get a distribution that encodes what we know about the true mean of the distribution of RTs (and also another distribution that encodes what we know about true standard deviation, $\sigma$, of the distribution of RTs.)
+\end{nbox}
+
+*Given our data, what can we learn from the posterior distribution of $\mu$?*
+
+Our model allows us to have answers to questions such as:
+
+**What is the probability that the underlying value of the mindless press of
+the space bar would be over, say 170 ms?**
+
+**Answer**:
+
+```{r, message=FALSE, warning=FALSE, tidy=F}
+
+mu_samples <- post_noreading[, , "mu"] 
+# Another possibility would be
+# mu_samples <- rstan::extract(fit_noreading)$mu
+
+# Proportion of samples over 170
+mean(mu_samples > 170)
+
+```
+
+**Which range of values contains a specified amount of probability?**
+
+
+This type of interval is also known as a *credible interval*. 
+
+A credible interval demarcates the range within which we can be certain with a certain probability that the "true value" of a parameter lies given the data and the model.
+This is very different from the frequentist confidence interval! See for example, @HoekstraEtAl2014 and @MoreyEtAl2015.
+
+The percentile interval is a type of credible interval (the most common one), where we assign equal probability mass to each tail. We generally report 95% credible intervals. But we can extract any interval, a 73% interval, for example, leaves `r (1.00-.73)/2*100`% of the probability mass on each tail, and we can calculate it like this:
+
+```{r, message=FALSE, warning=FALSE}
+print(fit_noreading, probs =c((1.00-.73)/2, (1.00+.73)/2), pars=c("mu"))
+```
+
+### Influence of priors and sensitivity analysis
+
+Everything was normally distributed in our example (or truncated normal), but the fact that we assumed that RTs were normally distributed is completely unrelated to our (truncated) normally distributed priors. Let's try with uniform priors without low or high boundaries, these are improper distributions^[They don't integrate to 1.] that assign the same probability density to every outcome. In general, this is a bad idea for two reasons: (i) it is computationally expensive (the sampler has a huge parameter space), and (ii) it is providing information that we know it's not accurate (every value is equally likely). But in our very simple example these priors will work.
+
+
+\begin{equation}
+\begin{aligned}
+\mu &\sim Uniform(-\infty, \infty) \\
+\sigma &\sim Uniform(0, \infty) 
+\end{aligned}
+\end{equation}
+
+
+This can be translated to Stan in the following way. If no priors are specified, uniform priors are assumed. I'm saving it as `noreading_2.stan`.
+
+<!-- cat(readLines("noreading_1.stan"), sep = "\n")   
+ -->
+
+```{r no_reading_2_stan_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("noreading_2.stan"), sep = "\n")
+```
+
+```{r, message=FALSE, warning=FALSE, results="hide"}
+fit_noreading_2 <- stan(file = 'noreading_2.stan', 
+    data = noreading_list)            
+```
+
+The output of the model will be more or less the same.
+
+```{r }
+
+print(fit_noreading_2, probs =c(.025,.5,.975), pars=c("mu","sigma"))
+
+```
+
+```{r, fig.height=2}
+traceplot(fit_noreading_2)
+```
+
+```{r fit_noreading_2plot, fig.height=2, message=F}
+post_noreading_2 <- as.array(fit_noreading_2)
+mcmc_hist(post_noreading_2, pars = c("mu", "sigma"))
+
+```
+
+
+In general we don't want our priors to have too much influence on our
+posterior. This is unless we have *very* good reasons for having informative
+priors, such as a very small sample and a lot of prior information; an example
+would be if we have data from an impaired population, which makes it hard to
+increase our sample size. In general, however, we only use priors to get
+reasonable posterior distributions. We center the priors in 0 and we let the
+data alone to "decide" whether an effect is positive or negative. This type of
+priors are called *weakly regularizing priors*. Notice that a uniform prior is
+not a weakly regularizing prior, it assumes that every value is equally
+likely, zero is as likely as infinity. If you're unsure whether the priors you
+chose have too strong an effect on the posterior distribution, you can do a
+*sensitivity analysis*: You try different priors and verify that the posterior
+doesn't change drastically [for a published  example, see
+@VasishthetalPLoSOne2013]. See also Exercise \ref{ex:firstpriors}.
+
+
+
+
+## A slightly more interesting analysis of the small experiment \label{sec:moreinter}
+
+More realistically, we might have run the small experiment to know whether I (the
+participant) tended to speedup (practice effect) or slowdown (fatigue effect) while I was
+pressing the space bar. And maybe how strong  this effect was.
+
+
+### Preprocessing the data
+
+You might have preprocessed  your data for the exercises of the previous
+session: we need to have data about the number of times the space bar was
+pressed for each observation, and add it to our list. It's a good idea to
+center the number of presses (a covariate) to have a
+clearer interpretation of the intercept. In general, centering predictors is
+always a good idea, for interpretability and for computational reasons.
+
+```{r, reading_noreading_sb}
+# We create the new column in the data frame
+noreading_data$presses <- 1:nrow(noreading_data)
+# We center the column
+noreading_data$c_presses <- noreading_data$presses - mean(noreading_data$presses)
+# We add it to the list that goes into rstan
+noreading_list$presses <-  noreading_data$c_presses
+```
+
+### Probability model
+
+
+Our model changes, because we have a new parameter. 
+
+\begin{equation}
+RT_i \sim Normal(\alpha + presses_i \cdot \beta,\sigma)
+\end{equation}
+
+where $i =1 \ldots N$
+
+
+And we are going to use the following priors:
+
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0, 2000) \\
+\sigma &\sim Normal(0, 500) \text{ truncated so that } \sigma > 0 \\
+\beta &\sim Normal(0, 500) 
+\end{aligned}
+\end{equation}
+
+
+We are basically fitting a linear model, $\alpha$ represents the intercept (namely, the grand mean of the RTs), and $\beta$ represents the slope. Which information are the priors encoding? Does it make sense?
+
+We'll write this in Stan code as follows.
+
+<!-- cat(readLines("noreading_1.stan"), sep = "\n")   
+ -->
+
+```{r no_reading_3_stan_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("noreading_3.stan"), sep = "\n")
+```
+
+Save it as `noreading_3.stan`.
+
+```{r, message=FALSE, warning=FALSE, results="hide"}
+fit_noreading_3 <- stan(file = 'noreading_3.stan', 
+    data = noreading_list)            
+```
+
+```{r }
+
+print(fit_noreading_3, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma"))
+
+```
+
+```{r, fig.height=2}
+traceplot(fit_noreading_3)
+```
+
+```{r fit_noreading_3plot, fig.height=2, message=F}
+post_noreading_3 <- as.array(fit_noreading_3)
+mcmc_hist(post_noreading_3, pars=c("alpha","beta","sigma"))
+
+```
+
+
+### Summarizing the posterior and inference
+
+How can we answer our research question? What is the effect of pressing the
+bar on the participant's reaction time?
+
+
+
+
+```{r, echo=F, results="hide"}
+beta_mean <- round(summary(fit_noreading_3)$summary["beta","mean"],2)
+beta_high <- round(summary(fit_noreading_3)$summary["beta","97.5%"],2)
+beta_low <- round(summary(fit_noreading_3)$summary["beta","2.5%"],2)
+```
+
+
+
+We'll need to examine what happens with $\beta$. The summary gives us important information, we can learn that the most likely values of $\beta$ will be around the mean of the posterior `r beta_mean`, and we can be 95% certain that the true value of $\beta$ *given the model and the data* lies between `r beta_low` and `r beta_high`. We extract these values by doing `summary(fit_noreading_3)$summary["beta",column_name]` and replacing column_name by either `"mean"`, `"2.5%"`, or `"97.5%"`.
+
+We see that as the number of times the space bar is pressed increases, the participant becomes slower. If we want to know how  likely it is that the participant was slower rather than faster, we can examine the proportion of samples above zero:
+
+```{r beta_samples}
+
+beta_samples <- post_noreading_3[, , "beta"] 
+
+mean(beta_samples > 0)
+
+```
+
+We would report this in a paper as $\hat\beta = `r beta_mean`$, 95% CrI = $[ `r beta_low` , `r beta_high` ]$, $P(\beta >0)  \approx `r mean(beta_samples > 0)`$
+
+
+
+
+Can we really conclude that there is a fatigue effect? It depends on how much
+we expect the fatigue to affect the RTs. Here we see that only after 100
+button presses, we'll see a slowdown of 9 ms on average ($0.09 \times 100$). We
+will need to think whether the size of this effect make sense considering the
+previous literature. Sometimes this requires a meta-analysis. See @JaegerEtAl2017 for an example, and the use of this prior knowledge in @NicenboimEtAl2016NIG.
+
+
+
+### Posterior predictive checks
+
+Let's say we know that our model is working as expected, since we already used
+fake data to test the recovery of the parameters. How do we know if our model
+is "good"?
+
+We will examine the *descriptive adequacy* of the models [@ShiffrinEtAl2008;
+@GelmanEtAl2014, Chapter 6]: the observed data should look plausible under the
+*posterior predictive distribution*. The posterior predictive distribution is
+composed of one dataset for each sample from the posterior. (So it will
+generate as many datasets as iterations we have after the warm-up.)  Achieving
+descriptive adequacy means that the current data could have been predicted
+by the model. Passing a test of descriptive adequacy is not strong evidence
+in favor of a model, but a major failure in descriptive adequacy can be
+interpreted as strong evidence against a model [@ShiffrinEtAl2008].
+
+
+To do posterior predictive checks we need to add the `generated_quantities`
+block at the end of our Stan model and we'll store the predictions in a vector
+called `pred_Y` with length `N` (number of observations). We do this with a
+function called `normal_rng(mu, sigma)`; this function generates a random
+number (*rng* stands for random number generator) based on the two parameters
+of the function (similar to the R function `rnorm(1, mu, sigma)`). Notice that
+`pred_Y` will iterate over the entire dataset of length `N` on *each
+iteration of the sampler*. This will become clearer after running the code.
+
+Save the model as `noreading_4.stan`.
+
+```{r no_reading_4_stan_code, tidy = TRUE, comment="", echo=FALSE, warning=F}
+cat(readLines("noreading_4.stan"), sep = "\n")  
+```
+
+
+We fit the model, and check its convergence as usual.
+
+```{r, message=FALSE, warning=FALSE, results="hide"}
+fit_noreading_4 <- stan(file = 'noreading_4.stan', 
+    data = noreading_list)            
+
+```
+```{r, eval=F}
+traceplot(fit_noreading_4, pars=c("alpha","beta","sigma"))
+print(fit_noreading_4, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma"))
+```
+
+But now, once we have fit the new model it is possible to extract the predicted RTs:
+
+```{r, message=FALSE, warning=FALSE, tidy=F}
+matrix_pred_Y <- rstan::extract(fit_noreading_4)$pred_Y
+dim(matrix_pred_Y)
+# first dimension: number of samples = 2000 iterations per chain /2 * 4 chains
+# second dimension: number of original datapoints
+```
+
+This means we have `r dim(matrix_pred_Y)[1]` simulations, each simulation
+consists of an entire dataset that is created with the values of `mu`, `beta`
+and `sigma` that the corresponds to a given iteration (after the warmup). For
+example, `matrix_pred_Y[1,]` is a complete simulated dataset generated from
+the first sample of the parameters. 
+
+\begin{nbox}{We could recreate it in R with the code that follows.}
+
+Notice that this won't return the exact same values than Stan gave us, however, because we
+are generating random numbers based on the distribution.
+
+\end{nbox}
+
+
+```{r, message=FALSE, warning=FALSE, tidy=F}
+alpha_samples <- rstan::extract(fit_noreading_4)$alpha
+beta_samples <- rstan::extract(fit_noreading_4)$beta
+sigma_samples <- rstan::extract(fit_noreading_4)$sigma
+rt_gen <- c()
+for(i in 1:noreading_list$N) {
+  mu <- alpha_samples[1] + beta_samples[1] * noreading_list$presses[i]
+  sigma<- sigma_samples[1]
+  rt_gen[i] <- rnorm(1, mu , sigma )  
+}
+
+length(rt_gen)
+head(rt_gen)
+```
+
+-----
+
+
+
+We'll use the values generated by our Stan model to verify whether the general
+shape of the actual distribution matches the distributions from some of the
+generated datasets. Let's compare the real data against 11 of these 4000
+datasets (called here `y_rep`):
+
+```{r, message=FALSE, warning=FALSE,fig.height=4}
+# Let's pick 11 random simulations over the 4000 that we have
+pick <- sample(1:4000,11)
+ppc_hist(noreading_list$Y, matrix_pred_Y[pick, ]) 
+```
+
+*Is the simulated data similar to the real data?*
+
+Our dataset seems to be more skewed to the right than  our predicted
+datasets. This is not too surprising, we assumed that the likelihood was a
+normal distribution, but latencies are not very normal-like, they can't be
+negative and can be arbitrarily long.
+
+
+### A better probability model using the log-normal distribution
+
+Since we know that the latencies shouldn't be normally distributed, we can choose a more realistic distribution for the likelihood. A good candidate is the log-normal distribution since a variable (such as time) that is log-normally distributed takes only positive real values. 
+
+If $Y$ is log-normally distributed, this means that $log(Y)$ is normally distributed.^[In fact, $log_e(Y)$ or $ln(Y)$, but since it is the most popular logarithm in statistics we'll write it as just $log()$] Something important to notice is that the log-normal distribution is defined using again $\mu$ and $\sigma$, but this corresponds to the mean and standard deviation of the normally distributed logarithm $log(Y)$.  Thus $\mu$ and $\sigma$ are on a different scale than the variable that is log-normally distributed. 
+
+This also means that you can create a log-normal distribution by exponentiating the samples of a normal distribution:
+
+
+
+```{r lognormal, fig.height=2,fig.width=3.5, fig.show='hold', message=F, warning=F}
+mu <- 6
+sigma <- 0.5
+N <- 100000
+# We generate N random samples from a log-normal distribution.
+sl <- rlnorm(N, mu, sigma)
+lognormal_plot <- ggplot(data.frame(samples=sl), aes(sl)) + geom_histogram() + 
+      ggtitle("Log-normal distribution\n") + ylim(0,25000) + xlim(0,2000)
+# We generate N random samples from a normal distribution, and then we exponentiate them
+sn <- exp(rnorm(N, mu, sigma))
+normalplot <- ggplot(data.frame(samples=sn), aes(sn)) + geom_histogram() + 
+      ggtitle("Exponentiated samples of\na normal distribution") + ylim(0,25000) + xlim(0,2000)
+
+plot(lognormal_plot)
+plot(normalplot)
+```
+
+
+
+### The slightly more realistic probability model
+
+If we assume that RTs are log-normally distributed, we'll need to change our model:
+
+\begin{equation}
+Y_i \sim LogNormal(\alpha + presses_i \cdot \beta,\sigma)
+\end{equation}
+
+where $i =1 \ldots N$
+
+
+But now the scale of our priors needs to change! They are no longer in milliseconds.
+
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0, 10) \\
+\sigma &\sim Normal(0, 2) \text{ truncated so that } \sigma > 0 \\
+\beta &\sim Normal(0, 1) 
+\end{aligned}
+\end{equation}
+
+The interpretation of the parameters changes and it is more
+complex than if we were dealing with a linear model (that is, with  a normal distribution):
+
+* $\alpha$. In our previous linear model, $\alpha$ represented the grand mean (or the grand median since in a normal distribution both coincide), and was equivalent to our previous $\mu$ (since $\beta$ was multiplied by 0). But now, the grand mean needs to be calculated in the following way,  $\exp(\alpha +\sigma ^{2}/2)$. Interestingly, the grand median will  just be $exp(\alpha)$,^[You can check in Wikipedia (https://en.wikipedia.org/wiki/Log-normal_distribution) why.] and we could assume that this represents the underlying time it takes to press the space bar if there would be no noise, that is, if $\sigma$ had no effect. This also means that the prior of $\alpha$ is not in milliseconds, but in log(milliseconds).
+
+*  $\beta$. In a linear model, $\beta$ represents the slowdown for each time the space bar is pressed. Now $\beta$ is the effect on the log-scale, and the effect in milliseconds depends on the intercept $\alpha$: $exp(\alpha + \beta) - exp(\alpha)$. Notice that the log is not linear and the effect of  $\beta$ will have more impact on milliseconds as the intercept grows. For example, if we start with (i) $exp(5) = 148$, and we add $0.1$ in log-scale, $exp(5 + 0.1) = 164$, we end up with a difference of 15 ms; if we start with (ii) $exp(6) = 400$, and we add $0.1$, $exp(6 + 0.1) = 445$, we end up with a difference of 45 ms. You can also see it graphically below.
+
+*  $\sigma$. This is the standard deviation of the normal distribution of $log(y)$.
+
+<!-- ($exp(10+.1) - exp(10) >  exp(1+.1) - exp(1)$, that is, $`r exp(10+.1) - exp(10)` > `r exp(1+.1) - exp(1)`$). -->
+
+```{r, echo=F}
+
+ms_diff <- function(Intercept){
+  exp(Intercept + .1) - exp(Intercept)
+}
+df <- tibble::data_frame(Intercept=seq(.1,15,.01), ms= ms_diff(Intercept))
+ggplot(df, aes(x=Intercept,y=ms)) + geom_point() + scale_y_continuous("Difference in milliseconds")
+
+```
+
+What kind of information are the priors encoding?
+
+
+* For $\alpha$: We are 95% certain that the grand median of the RTs will be between $\approx `r exp(-10*2)`$ and $`r round(exp(10*2))`$ milliseconds. This is a (very-)weakly regularizing prior  because it won't affect our results, but it will down-weights values for the grand median of the RTs that are extremely large, and won't allow the grand median to be negative. We calculate the previous range by back-transforming the values that lie between two standard deviations of the prior ($2 \times 10$) to millisecond scale: $exp(-10 \times 2)$ and $exp(10 \times 2)$).
+
+* For $\beta$: This is more complicated, because the effect on milliseconds will depend on the estimate of $\alpha$. However, we can assume some value for $\alpha$ and it will be enough to be in the right order of magnitude. So let's assume 500 ms. That will mean that we are 95% certain that the effect of pressing the space bar will be between $`r round(exp(log(500) - 4)) - 500`$ and $`r round(exp(log(500) + 4)) - 500`$ milliseconds. It is asymmetric because the log-scale is asymmetric. But the prior is weak enough so that if we assume 1000 or 100 instead of 500, the possible estimates of $\beta$ will still be contained in the prior distribution.  We calculate this by first finding out the value in milliseconds when we are two standard deviations away in both directions: ($2\times 2$), that is $exp(500 - 2 \times 2)$ and  $exp(500 + 2 \times 2)$, and we subtract from that the value of $\alpha$ that we assumed, $500$:   $exp(500 - 2 \times 2) - 500$ and  $exp(500 + 2 \times 2) - 500$.
+
+*  For $\sigma$. This indicates that we are 95% certain that the standard deviation of $log(y)$ will be between 0 and 2. So 95% of the RTs  will be between $exp(log(500) - 1 \times 2) = `r round(exp(log(500) - 1 * 2))`$ and $exp(log(500) + 1 \times 2) = `r round(exp(log(500) + 1 * 2))`$.
+
+What happens if we replace 500 by 100, and by 1000? What happens if it is 10 instead? Does it still makes sense?
+
+
+
+We'll code the model as follows. Notice that we can use the `generated quantities` also to transform our parameters in a scale we can understand more easily (milliseconds).
+
+
+```{r no_reading_log_stan_code, tidy = TRUE, comment="", echo=FALSE, warning=F}
+cat(readLines("noreading_log.stan"), sep = "\n")   
+```
+Save the above code as `noreading_log.stan`.
+
+We fit the model, and check its convergence as usual.
+
+```{r, message=FALSE, warning=FALSE, results="hide"}
+fit_noreading_log <- stan(file = 'noreading_log.stan', 
+    data = noreading_list)      
+```
+```{r, fig.height=2}
+traceplot(fit_noreading_log, pars =c("alpha","beta","sigma"))
+print(fit_noreading_log, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma", "RT_under", "effect_of_1_press"))
+# We'll need more digits to see what's going on with beta
+print(fit_noreading_log, probs =c(.025,.5,.975), pars=c("beta"),digits=5)
+```
+
+
+### Summarizing the posterior and inference
+
+```{r, echo=F, results="hide"}
+options(scipen=999, digits=5)
+
+beta_mean <- round(summary(fit_noreading_log)$summary["beta","mean"],4)
+beta_high <- round(summary(fit_noreading_log)$summary["beta","97.5%"],4)
+beta_low <- round(summary(fit_noreading_log)$summary["beta","2.5%"],4)
+ 
+post_noreading_log <- as.array(fit_noreading_log)
+beta_samples <- post_noreading_log[, , "beta"] 
+
+```
+
+
+We can summarize the posterior and do inference as before. If we want to talk about the effect estimated by the model, we summarize the posterior of $\beta$ in the following way: $\hat\beta = `r beta_mean`$, 95% CrI = $[ `r beta_low` , `r beta_high` ]$, $P(\beta >0)  \approx `r mean(beta_samples > 0)`$
+
+```{r, echo=F, results="hide"}
+
+beta_mean <- round(summary(fit_noreading_log)$summary["beta","mean"],4)
+beta_high <- round(summary(fit_noreading_log)$summary["beta","97.5%"],4)
+beta_low <- round(summary(fit_noreading_log)$summary["beta","2.5%"],4)
+
+post_noreading_log <- as.array(fit_noreading_log)
+beta_samples <- post_noreading_log[, , "beta"] 
+
+```
+
+```{r, echo=F, results="hide"}
+
+effect_of_1_press_mean <- round(summary(fit_noreading_log)$summary["effect_of_1_press","mean"],2)
+effect_of_1_press_high <- round(summary(fit_noreading_log)$summary["effect_of_1_press","97.5%"],2)
+effect_of_1_press_low <- round(summary(fit_noreading_log)$summary["effect_of_1_press","2.5%"],2)
+
+options(scipen=999, digits=3)
+
+```
+
+
+But sometimes, the effect in milliseconds is easier to interpret. We generated
+`effect_of_1_press` in the generated quantities block, which is not the same as
+the linear model's $\beta$. Our generated estimate will tell us the estimate
+of the slowdown produced by pressing the space bar in the middle of the
+experiment once, assuming that the RTs are log-normally distributed:
+$`r effect_of_1_press_mean`$ ms, 95% CrI = $[ `r effect_of_1_press_low` , `r effect_of_1_press_high` ]$. 
+Coincidentally, it is the
+same value as before, but this is not always the case, and since it's not
+linear the effect won't be the same across the whole experiment; see Exercise
+\ref{ex:diff-eff}.
+
+
+
+### Posterior predictive checks and distribution of summary statistics
+
+We can now verify whether our predicted datasets look more similar to the real dataset.
+
+```{r, message=FALSE, warning=FALSE, fig.height=4}
+
+
+matrix_pred_Y_log <- rstan::extract(fit_noreading_log)$pred_Y
+dim(matrix_pred_Y_log)
+
+
+# Let's pick 11 random simulations over the 4000
+pick <- sample(1:4000,11)
+ppc_hist(noreading_list$Y, matrix_pred_Y_log[pick, ]) 
+```
+
+*Is the simulated data now more similar to the real data?*
+
+It seems so, but it's not easy to tell. Another way to examine this would be
+to look at the  *distribution of summary statistics*. The idea is to compare the
+distribution of representative summary statistics for the datasets generated
+by different models and compare them to the observed statistics. Since we
+suspect that the log-normal distribution may capture the long tail,  we could
+use the maximum as a summary statistics.
+
+We do it using the package `bayesplot`:
+
+```{r, message=FALSE, warning=FALSE, fig.height=2,fig.width=3.5,fig.show='hold', tidy=F}
+normalsum <- ppc_stat(noreading_list$Y, matrix_pred_Y, stat = "max") + 
+             ggtitle("Normal model")
+lognormalsum <- ppc_stat(noreading_list$Y, matrix_pred_Y_log, stat = "max") + 
+                ggtitle("Log-normal model")
+plot(normalsum)
+plot(lognormalsum)
+```
+
+Here we see that both distributions are unable to capture the maximum value of the observed data, and that there's still room for improving the model. Another more advanced possibility is to compare the models using cross-validation techniques; see for example, @GelmanEtAl2014understanding; @VehtariOjanen2012; @VehtariEtAl2017.
+
+
+
+### General workflow
+
+This is the general workflow that we recommend for a Bayesian model.
+
+1. Define the full probability model:
+    a. Think about the likelihood.
+    b. Think about the priors.
+    c. Write the Stan model.
+2. Fake data simulations:
+    a. Simulate data with known values for the parameters.
+    b. Fit the model and do MCMC diagnostics.
+    c. Verify that it recovers the parameters from simulated data.
+3. Fit the model with real data and do MCMC diagnostics.
+4. Evaluate the model's fit (e.g., posterior predictive checks, distribution of summary statistics). This may send you back to 1.
+5. Inference/prediction.
+6. Sometimes model comparison if there's an alternative model.
+
+
+
+
+
+\newpage
+
+\begin{Sbox}{\subsection{Key concepts}}
+\begin{itemize}
+\item Stan basic blocks and data types.
+\item How to identify convergence problems (MCMC diagnostics).
+\item Normal and log-normal distributions.
+\item Summaries of the posterior and inference.
+\item Model evaluation using posterior predictive checks.
+\item General workflow for doing Bayesian analysis.
+\end{itemize}
+\end{Sbox}
+
+\begin{qbox}{\subsection{Exercises}}
+\begin{enumerate}
+\item For the  model  in Section \ref{sec:first}.
+  \begin{enumerate}
+    \item Recall that when we use the Beta distribution as a prior for the $\theta$ parameter in a Binomial, the two parameters of the Beta indicate previous outcomes and not only the most likely value of $\theta$. For example, $Beta(2,2)$ and $Beta(50,50)$ both indicate that $.5$ is the most likely value of $\theta$, but $Beta(50,50)$ indicates that we are more certain about it than $Beta(2,2)$. 
+    Assume that you are quite certain that the average accuracy in the task is 80\% for individuals with aphasia. How would you change the priors for the model in \ref{sec:first}? Fit the model several times, assuming the same average accuracy as prior information, but varying the amount of uncertainty? When do the results change? \label{ex:firstpriors}
+    \item Change the data to \verb|qresp_data <- list(c = 460, N = 1000)|, and repeat \ref{ex:firstpriors} with the same priors.
+    \item Simulate data assuming that the true $\theta$ is exactly $.5$ and (i) \verb|N = 100|, (ii) \verb|N = 1000| and run the \verb|firstmodel.stan|. (Tip: use the function \verb|rbinom| to simulate data.) Is the true value of $\theta$ inside 95\% credible interval? \label{ex:first-fake}
+ \end{enumerate}
+ \item For the  model  in Section \ref{sec:small}
+  \begin{enumerate}
+  \item Change the priors of $\mu$ and $\sigma$ in \verb|noreading_1.stan| to a Cauchy and a truncated Cauchy distributions. A Cauchy distribution is basically a bell shaped distribution with very fat tails.\footnote{You can read about this distribution in \url{https://en.wikipedia.org/wiki/Cauchy_distribution}.} What are reasonable values for the location and scale? What's the difference between having a Cauchy or a normal distribution as priors?
+  \end{enumerate}
+\end{enumerate}
+Continues in the next page.
+\end{qbox}
+
+\begin{qbox}{}
+\begin{enumerate}[3.]
+\item For the  models  in Section \ref{sec:moreinter}.
+  \begin{enumerate}
+  \item Edit the \verb|generated quantities| block in \verb|noreading_log.stan| to estimate the slowdown in milliseconds (mean and 90\% credible interval) for the last time the participant  pressed the space bar in the experiment. In addition, predict the slowdown if the experiment would have had 500 observations.\label{ex:diff-eff}
+  \item Optional but very recommended: Simulate data that assumes a value of $\alpha$ of 400 and $\sigma$ of 125 and a practice effect of (i) 0.00001  and (ii) 0.1 (both in log-scale). Fit these data with \verb|noreading_log.stan|. Is the true value of the effect in the 95\% credible interval in both cases? 
+  \item Add word length as a covariate in \verb|noreading_log.stan|, summarize the posterior. How does the length of the words affect RTs?
+   \end{enumerate}
+\end{enumerate}
+\end{qbox}
+
+
+
+\newpage
+
+## Appendix - Troubleshooting problems of convergence \label{sec:Appendix}
+
+
+1. Rhat > 1.1 First of all check that there are no silly mistakes in the model. Forgetting to put parenthesis, multiplying the wrong parameters, using the wrong operation, etc. can create a model that can't converge. As our models grow in complexity there are more places where to make mistakes. Start simple, see if the model works, add complexity slowly, checking if the model converges at every step. In very rare occasions, when Rhat >1.1 and the model is correct, it may help to increase the number of iterations, but then it's usually a better idea to re-parametrize the model, see 3.
+
+2. Stan gives a warning. The solution may also be point 1. But if the model is correctly specified, you should check  Stan's website, there is a very good guide to solve problems in: http://mc-stan.org/misc/warnings.html. If this doesn't work, you may need to re-parametrize the model, see 3.
+
+3. Some models have convergence issues because the sampler struggles to explore the parameters space. This is specially relevant in complex hierarchical models. In this case, the solution might be to re-parametrize the model. This is by no means trivial. However, the simplest parametrization trick to try is to have all the priors on the same rough scale, that is priors shouldn't have different orders of magnitude. You can find some suggestions in the chapter 21 of Stan manual [@Stan2017], and the following case study: http://mc-stan.org/users/documentation/case-studies/qr_regression.html.
+
+
+<!-- https://cran.r-project.org/web/packages/bayesplot/vignettes/PPC.html -->
+
+## References

@@ -1,0 +1,54 @@
+---
+subtitle: "FGME2017, Tuebingen, Germany"
+title: "Introduction to Bayesian Modeling using Stan"
+author: "Bruno Nicenboim and Shravan Vasishth"
+date: "`r Sys.Date()`"
+header-includes:
+   - \usepackage{todonotes}
+   - \usepackage{tcolorbox}
+   - \usepackage{exercise}
+   - \usepackage{enumerate}
+   - \usepackage{amssymb}
+   - \usepackage{mathptmx}
+   - \usepackage{amsthm}
+   - \usepackage{esint}
+   - \newtheorem{definition}{Definition}
+   - \newtheorem{proposition}{Proposition}
+   - \newtheorem{theorem}{Theorem}
+fontsize: 12pt
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: true
+    latex_engine: xelatex
+    toc: true
+    number_sections: true
+    toc_depth: 6
+    includes:
+      before_body: prefix.tex
+citation_package: biblatex
+biblatexoptions: 
+  - "backend=biber, style=apa"
+bibliography:  bayes.bib
+link-citations: yes
+fig_height: 4
+---
+\fontsize{12}{18}\selectfont
+
+```{r setup, include=FALSE,cache=F}
+knitr::opts_chunk$set(tidy = T,cache=T, autodep=TRUE,tidy.opts=list(width.cutoff=59))
+options(htmltools.dir.version = FALSE)
+options(scipen=999, digits=2)
+library(ggplot2)
+theme_set(theme_classic()) 
+```
+
+<!-- 
+```{r child = 'IntroductionBayes.Rmd'}
+``` -->
+
+```{r child = 'IntroductionStan.Rmd'}
+```
+
+```{r child = 'BayesianHierarchicalModels.Rmd'}
+```

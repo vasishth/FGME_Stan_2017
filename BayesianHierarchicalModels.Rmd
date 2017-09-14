@@ -1,0 +1,1454 @@
+# Bayesian hierarchical models (also known as multilevel or mixed-effects models)
+
+## Advantages (and disadvantages)
+
+Why do we need them?
+
+1. To adjust estimates for repeated sampling when more than one observation arises
+ from the same "cluster": individual, item, word, etc...
+2. To adjust estimates for imbalance in sampling. It is not extremely important in carefully designed experiments, but it can happen that we need to throw  away data from items (i.e., because of a typo) or from subjects.
+3. To study variation between participants. 
+4. To avoid averaging over participants (and items) to solve (1), that is, repeated sampling. Averaging artificially removes  variation and leads to false confidence. Hierarchical models allow us  to preserve the uncertainty in the original pre-averaged values, while still using the average to make predictions.
+
+
+What are the costs of fitting hierarchical models?
+
+* New assumptions: distributions from which the characteristics of the clusters arise.
+* Time! It takes much longer than a non-hierarchical model.
+
+## Applied example: Attachment preference
+
+Let's consider these two sentences taken from
+@SwetsEtAl2008Underspecificationsyntacticambiguities, available through Pavel
+Logačev's github page.^[https://github.com/plogacev/manuscript_LogacevVasishth_TQJEP_Underspecification/tree/master/Data_Swets_et_al] (Notice that we are not
+focusing on the phenomenon that Logacev or Swets et al investigated.)
+
+(1) *The son of the princess who scratched* **himself** *in 
+public was terribly humiliated*  (N1 attachment)
+(2) *The son of the princess who scratched* **herself** *in 
+public was terribly humiliated*. (N2 attachment)
+
+
+There is evidence that English speakers have a preference for  N2 attachment
+(also called low-attachment), that is, people tend to interpret that the
+relative clause starting with *who* will refer to the second noun ("the
+princess") rather than the first one [e.g.,
+@CarreirasClifton1999Anotherwordparsing]. This preference is attested by English
+speakers  showing processing difficulty when faced with a disambiguating
+noun that contradicts their ~~initial analysis~~ preference. I'm trying to be neutral
+regarding the reason, such as garden path: @FrazierRayner1982making;
+surprisal: @Levy2008Expectationbasedsyntacticcomprehension; etc. We want
+to examine if the data at hand provide evidence  for N2 attachment
+preference.
+
+* We first load the data and clean it a bit:
+
+```{r open_swetsetal}
+swetsetal2008 <- read.table("data/Data_SwetsEtAl2008.csv",sep=";", header=T)
+head(swetsetal2008) 
+
+# We save this horribly long column name in another column
+swetsetal2008$condition <-  swetsetal2008$`amb..1...ambiguous..2...N1.attachment..3...N2.attachment.`
+
+# We remove the globally ambiguous sentences from our data
+N1N2 <- swetsetal2008[swetsetal2008$condition != 1 ,]
+
+#We'll save RTs at 'reflexive' in a column with a clearer name:
+N1N2$RT <- N1N2$reflexive
+
+# Subset some subjects (to decrease computation time)
+N1N2 <- N1N2[N1N2$sub <= 80,]
+
+# Total number of subjects:
+length(unique(N1N2$sub))
+```
+
+We can inspect a bit the data:
+
+```{r, fig.height=2,message=F}
+library(ggplot2)
+# Let's also see how the data is distributed
+quantile(N1N2$RT)
+ggplot(N1N2, aes(RT))+geom_histogram()
+
+```
+We see that the data don't look normally distributed at all.
+
+We also take a look at the average RTs at the critical region conditional on the attachment site.
+
+```{r}
+#Show times at the reflexive verb for the two conditions
+# 2 is N1 attachment, 3 is N2 attachment
+aggregate(RT ~ condition, data=N1N2, mean)
+```
+
+We see that N1 attachment causes longer RTs at the reflexive verb. Is it just
+in our sample because of noise? We want to examine the evidence that our data
+(and our model) presents for N1 attachment causing increased processing
+difficulty in comparison with N2 attachment.
+
+
+* The data that we have consists of:
+    + Reading times at the reflexive pronoun.
+    + Two conditions: N1 (high) and N2 (low) attachment.
+    + Number of observations (`length(N1N2$RT)`): `r length(N1N2$RT)`
+    + Number of subjects (`length(unique(N1N2$sub))`): `r length(unique(N1N2$sub))`
+    + Number of items (`length(unique(N1N2$item))`): `r length(unique(N1N2$item))`
+
+
+How should we model the data? Which are sensible assumptions? We'll build different models to analyze these data.
+
+
+### Complete pooling or fixed effects model ($M_{cp}$)
+
+We'll start from the simplest model which is basically a linear regression with a log-transformed dependent variable. **Note that this model is incorrect for these data due to point 2 below.**
+
+* Model $M_{cp}$ assumptions:
+
+1. RTs are log-normally distributed.
+2. Observations are *independent*.
+3. There can be a difference in RTs between the sentences with N1 attachment and N2 attachment.
+4. **Likelihood**:
+
+\begin{equation}
+RT_n \sim LogNormal(\mu_n,\sigma)
+\end{equation}
+with $\mu_n = \alpha + x_n \cdot \beta$ and $n = 1,2,\ldots,N$ observations
+
+
+* $n$ represents each observation, the $n$th row in the data frame
+* $exp(\alpha)$ is the median of the log-normal distribution
+* We use sum coding for the effect of attachment so that $x_n$ is $1$ for N1 attachment and $-1$ for N2 attachment:
+
+```{r}
+N1N2$x <- ifelse(N1N2$condition == 2, 1, -1)
+
+```
+
+
+* exp($\alpha$) is the median of the log-normal distribution when we average out the effect of
+  attachment, $\beta$, in the log-scale. $\alpha$ is generally called the
+  intercept.
+* $\beta$ represents the effect of the attachment site on the location of the
+  distribution in log-scale. The effect in milliseconds is **not** $exp(\beta)$! If we want to know the difference in milliseconds between the two conditions, we need to take into account the intercept: $exp(\alpha +\beta) - exp(\alpha - \beta)$.
+
+\begin{nbox}{Why do we need to do  $exp(\alpha +\beta) - exp(\alpha - \beta)$?}
+
+This is because on average (according to the geometric mean) our model behaves as follows:
+
+\begin{equation}
+log(RT_{condition}) = \alpha + x_{condition} \cdot \beta
+\end{equation}
+
+And depending on the condition,
+\begin{enumerate}[(a)]
+\item $log(RT_{condition=N1}) = \alpha + x_{N1} \cdot \beta = \alpha + (+1) \cdot \beta$
+\item $log(RT_{condition=N2}) = \alpha + x_{N2} \cdot \beta = \alpha + (-1) \cdot \beta$
+\end{enumerate}
+
+Exponentiating we get
+\begin{enumerate}[(a)]
+\item  $exp(log(RT_{condition=N1})) = RT_{condition=N1}  = exp(\alpha +   \beta)$
+\item  $exp(log(RT_{condition=N2})) = RT_{condition=N2}  = exp(\alpha -  \beta)$
+\end{enumerate}
+
+Thus:
+\begin{equation}
+RT_{condition=N1} -  RT_{condition=N2} = exp(\alpha + \beta) - exp(\alpha - \beta)
+\end{equation}
+\end{nbox}
+
+5. **Priors**:
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0,10)\\
+\beta  &\sim Normal(0,1)\\
+\sigma  &\sim Normal(0,1) \text{ for }  \sigma > 0
+\end{aligned}
+\end{equation}
+
+Pay attention to the scale we are using: $\alpha$, $\beta$, and $\sigma$ will
+be parameters inside a log-normal distribution, and thus they are not
+representing milliseconds. What do we know about the parameters according to
+these priors? (See the notes of the previous session.)
+
+
+A model such as $M_{cp}$ is sometimes called a *fixed-effects* model: all the
+parameters are fixed and do not vary from subject to subject or from item to
+item.^[A similar frequentist model  would correspond to fitting a simple
+linear model using the `lm` function: `lm(log(RT) ~ x, data=N1N2)`.]
+
+This model is almost identical to the one we dealt at the end of the last session. But I'm introducing a new block as well, `transformed parameters`. Here I define $\mu$ which is not really a *free* parameter and depends completely on the values of $\alpha$ and $\beta$. Notice that I'm also generating the estimate of the overall difference between the two conditions `overall
+_difference` in milliseconds.
+
+```{r Mcp_forloop_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Mcp_forloop.stan"), sep = "\n")  
+```
+
+The following code does the same but it's clearer and slightly faster. Stan allows us to omit for-loops if we deal with vectors.^[Maybe you heard that you should never use for-loops in R; in Stan the situation is not that bad, since the code is compiled in C++. However, vectorized code is usually simpler, less prone to errors, and could be slightly faster.]
+
+```{r Mcp_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Mcp.stan"), sep = "\n")  
+```
+
+We save the previous code as a text file called `Mcp.stan`. And we create a list to fit the data in `rstan`.
+
+```{r, message=FALSE, warning=TRUE, results="hide"}
+library(rstan)
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+# We define a list with the data, notice that the names in the list need to match with the names in the data block of the model (case included)
+Swets_list <- list(RT = N1N2$RT, x= N1N2$x, N= nrow(N1N2))
+# We fit the model here.
+fit_Mcp <- stan(file = 'Mcp.stan', 
+    data = Swets_list)            
+```
+
+If you did everything right,^[Yes, you will get some exceptions but as long as
+the count << number of iterations, everything is fine.] you should be able to
+print the summary for the parameters and the difference between conditions.
+Verify that the model converged by looking at the warning messages, examining the
+`Rhat`s and `n_eff`, and looking at the `traceplot`.
+
+```{r }
+print(fit_Mcp, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma", "overall_difference"), digits=3)
+```
+
+```{r, fig.height=2}
+traceplot(fit_Mcp, pars=c("alpha","beta","sigma"))
+```
+
+```{r fit_Mcp, fig.height=2, message=F}
+library(bayesplot)
+posterior_Mcp <- as.array(fit_Mcp)
+mcmc_hist(posterior_Mcp, pars = c("beta", "overall_difference"))
+```
+
+We see that $\beta$ seems to be different than 0. How sure can we be that this is so?
+
+```{r}
+# Proportion of samples above 0 should be similar to 
+# the proportion of the posterior distribution above 0.
+mean(rstan::extract(fit_Mcp)$beta > 0)
+```
+
+
+### No pooling model ($M_{np}$)
+
+One of the assumptions of the previous model is clearly wrong, observations
+are not independent. Observations  depend on the participant, for example,
+faster participants will generally answer faster. The *no pooling* model
+assumes that each participant is completely independent from each other.^[There is a parallel frequentist implementation in R called `lmlist`.]
+
+
+* Model $M_{np}$ assumptions:
+
+1. RTs are log-normally distributed.
+2. Observations depend *completely* on the participant. (Participants have nothing in common.)
+3. For every participant, there can be a difference in RTs between the sentences with N1 attachment and N2 attachment.
+
+
+
+4. **Likelihood**:
+
+\begin{equation}
+RT_n \sim LogNormal(\mu_n,\sigma_{i[n]})
+\end{equation}
+with $\mu_n = \alpha_{i[n]} + x_n \cdot \beta_{i[n]}$ 
+
+5. **Priors**:
+$$\alpha_i \sim Normal(0,10)$$
+$$\beta_i  \sim Normal(0,1)$$
+$$\sigma_i  \sim Normal(0,1) \text{ for } \sigma_n > 0$$
+
+
+* $n$ represents each obs, the $n$th row in the dataframe
+* $i$ represents each participant (our cluster), and $i[n]$ is the participant that corresponds to observation $n$. This follows @GelmanHill2007's notation.
+
+```{r, echo=F}
+# I do this because of limitations of inline r code, 
+subj <- as.numeric(as.factor(N1N2$sub))
+Nsubj <- length(unique(subj))   
+```
+
+Before we discuss the Stan implementation, let's see how the vector of $\mu$'s
+look like. There are in total `r Swets_list$N` observations, that means that
+$\boldsymbol{\mu}=\{\mu_1,\mu_2, \ldots, \mu_{`r Swets_list[["N"]]`}\}$, and
+we have `r Nsubj` participants which means that
+$\boldsymbol{\alpha}=\{\alpha_1,\alpha_2, \ldots, \alpha_{`r Nsubj`}\}$ (and
+similarly for $\boldsymbol{\beta}$ and $\boldsymbol{\sigma}$). There are also
+24 observations for each subject,^[There are 36 items, but we removed the ones
+associated with the third condition of the actual experiment.] so from
+$\alpha_{i[1]}$ to $\alpha_{i[24]}$ we are actually accessing to $\alpha$
+associated with subject 1, that is, $\alpha_1$, and from $\alpha_{i[25]}$ to
+$\alpha_{i[48]}$ we are accessing $\alpha_{2}$, and so forth.
+
+
+\begin{equation}
+\boldsymbol{\mu}=
+\begin{bmatrix}
+\mu_1 \\
+\mu_2 \\
+\ldots \\
+\mu_{7} \\
+\mu_{8} \\
+\ldots \\
+\mu_{24} \\
+\mu_{25} \\
+\mu_{26} \\
+\ldots \\
+\mu_{73} \\
+\ldots \\
+\mu_{`r Swets_list[["N"]]`}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\alpha_{i[1]} \\
+\alpha_{i[2]} \\
+\ldots \\
+\alpha_{i[7]} \\
+\alpha_{i[8]} \\
+\ldots \\
+\alpha_{i[24]} \\
+\alpha_{i[25]} \\
+\alpha_{i[26]} \\
+\ldots \\
+\alpha_{i[73]} \\
+\ldots \\
+\alpha_{i[`r Swets_list[["N"]]`]}
+\end{bmatrix}
++
+\begin{bmatrix}
+x_1 \\
+x_2 \\
+\ldots \\
+x_{7} \\
+x_{8} \\
+\ldots \\
+x_{24} \\
+x_{25} \\
+x_{26} \\
+\ldots \\
+x_{73} \\
+\ldots \\
+x_{`r Swets_list[["N"]]`}
+\end{bmatrix}
+\cdot
+\begin{bmatrix}
+\beta_{i[1]} \\
+\beta_{i[2]} \\
+\ldots \\
+\beta_{i[7]} \\
+\beta_{i[8]} \\
+\ldots \\
+\beta_{i[24]} \\
+\beta_{i[25]} \\
+\beta_{i[26]} \\
+\ldots \\
+\beta_{i[73]} \\
+\ldots \\
+\beta_{i[`r Swets_list[["N"]]`]}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\alpha_{`r  subj[1]`} \\
+\alpha_{`r subj[2]`} \\
+\ldots \\
+\alpha_{`r subj[7]`} \\
+\alpha_{`r subj[8]`} \\
+\ldots \\
+\alpha_{`r subj[24]`} \\
+\alpha_{`r subj[25]`} \\
+\alpha_{`r subj[26]`} \\
+\ldots \\
+\alpha_{`r subj[73]`} \\
+\ldots \\
+\alpha_{`r subj[Swets_list[["N"]]]` }
+\end{bmatrix}
++
+\begin{bmatrix}
+{`r N1N2$x[1]`} \\
+{`r N1N2$x[2]`} \\
+\ldots \\
+{`r N1N2$x[7]`} \\
+{`r N1N2$x[8]`} \\
+\ldots \\
+{`r N1N2$x[24]`} \\
+{`r N1N2$x[25]`} \\
+{`r N1N2$x[26]`} \\
+\ldots \\
+{`r N1N2$x[73]`} \\
+\ldots \\
+{`r N1N2$x[Swets_list[["N"]]]` }
+\end{bmatrix}
+\circ
+\begin{bmatrix}
+\beta_{`r  subj[1]`} \\
+\beta_{`r subj[2]`} \\
+\ldots \\
+\beta_{`r subj[7]`} \\
+\beta_{`r subj[8]`} \\
+\ldots \\
+\beta_{`r subj[24]`} \\
+\beta_{`r subj[25]`} \\
+\beta_{`r subj[26]`} \\
+\ldots \\
+\beta_{`r subj[73]`} \\
+\ldots \\
+\beta_{`r subj[Swets_list[["N"]]]` }
+\end{bmatrix}\label{eq:gelmanway}
+\end{equation} 
+
+with $\circ$ indicating an element-wise multiplication. This is done with `.*` in Stan but just `*` in R.
+
+The code of the no pooling model ($M_{np}$) appears below. 
+
+```{r Mnp_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Mnp.stan"), sep = "\n") 
+```
+
+We have also some new Stan code:
+
+* `int<lower = 1, upper = N_subj> subj[N];` defines a one-dimensional *array* of `N` elements that contains integers (bounded between 1 and `N_subj`). The difference between vectors and one-dimensional arrays is that vectors can only contain real numbers and can be used with matrix algebra functions, and arrays can contain any type but can't be used in matrix algebra.
+* `mu = alpha[subj] + x .* beta[subj];` is summing two vectors of the same length as `mu` (`N`). The first summand is basically the $\alpha$ column in Eq. \eqref{eq:gelmanway}, the second summand is the element-wise multiplication of the $\alpha$ column in Eq. \eqref{eq:gelmanway} with the vector `x`.
+
+
+
+Save the model as `Mnp.stan`.
+
+Now the model doesn't assume only *one* effect, but a different effect for each subject.
+We can then calculate the  average of the $\beta$'s, but the model doesn't assume that there's one common $\beta$.
+
+Before we can fit the model, we'll need to add to the list that goes into
+`rstan`, the information about the subjects, namely, which observation
+corresponds to each subject (in `subj`) and the total number of subjects (in
+`N_subj`).
+
+
+```{r Mnp-fit, message=F,warning=T, results="hide"}
+# This way I'm sure that the subjects are a sequence of numbers starting from 1 
+subj <- as.numeric(as.factor(N1N2$sub))
+N_subj <- length(unique(subj))   
+# We add this to the previous list
+Swets_list <- c(Swets_list, list(subj=subj,N_subj=N_subj))
+
+fit_Mnp <- stan(file = 'Mnp.stan', 
+    data = Swets_list)
+```
+
+As usual we inspect convergence:
+
+```{r, fig.height=2, eval=F}
+print(fit_Mnp, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma"))
+traceplot(fit_Mnp, pars=c("alpha","beta","sigma"))
+```
+
+And we'll examine the marginal posterior, and the posteriors of our
+generated quantities.
+
+```{r }
+print(fit_Mnp, probs =c(.025,.5,.975), pars=c("overall_difference","average_beta"),digits=3)
+```
+
+```{r fit_Mnp, fig.height=2, message=F}
+# Let's look at our generated quantities
+posterior_Mnp <- as.array(fit_Mnp)
+mcmc_hist(posterior_Mnp, pars = c( "average_beta", "overall_difference"))
+```
+
+
+
+We can also calculate how certain we are that the average effect is larger than 0.
+
+```{r}
+mean(rstan::extract(fit_Mnp)$average_beta>0)
+```
+
+We might have built a model like this, because we assume that participants are different, and that's what we want to examine.
+
+```{r, fig.height=10, message=F}
+# We plot the 95% and 80% areas of the posterior distributions of the
+#  "beta" generated quantity. Notice that we use regex_pars, this is
+#  because the columns of as.array(fit_Mvi) are beta[1],
+#  beta[2], etc. With regex_pars we match all the beta's.
+mcmc_areas(
+  posterior_Mnp, 
+  regex_pars = c("beta"),
+  prob = 0.8,  
+  prob_outer = 0.95,  
+  point_est = "mean"
+) 
+```
+
+
+Or we may want to see how many of the subjects have a mean effect that is positive:
+
+```{r}
+betas <- rstan::extract(fit_Mnp)$beta
+# Each column represents a participant, each row a sample:
+dim(rstan::extract(fit_Mnp)$beta)
+# We check for each column (participant), the proportion of samples above 0
+mean(colMeans(betas)>0)
+```
+
+Or more "Bayesian-ly" we may want to know how many lower intervals of the 95% CrI of the participants are above 0:
+
+```{r}
+# We apply for each column (2), the function quantile(x,.025)
+lowerCrI <- apply(betas, 2, function(x) quantile(x,.025))
+# We check the proportion of columns with lower quantiles (.025) above 0
+mean(lowerCrI>0)
+```
+
+<!-- We see that we reach different conclusions now in comparison with the complete
+pooling model, $M_{cp}$: Some evidence for an effect of attachment with
+$M_{cp}$ if we ignore the differences between subjects, no evidence (or
+extremely weak evidence) for an effect of attachment site with $M_{np}$ if we
+look at what happens with each subject. 
+ -->
+
+ Let's see now what can we learn from models with more realistic assumptions.
+
+### Varying intercept model ($M_{vi}$)
+
+We see that one main problem with the no pooling model is that it's not
+modeling what we care about (the overall effect)! (We just averaged
+participant's effects to obtain it, but the model didn't assume any
+commonality between participants). Another problem is in the estimation: We
+ignore completely that the participants were after all doing the same
+experiment. We fit each subject's data ignoring the information
+available in the other subjects' data. The previous model is very likely to
+*overfit* the data, we are likely to ignore the generalities of the data and
+we may end up modeling the noise.
+
+A sensible assumption (that will improve the estimation) is that there are
+commonalities between the subjects. This will result in the estimation of
+posteriors for each participant being also influenced by what we know about
+all the participants. We'll fit first  the simplest kind of hierarchical
+model, a varying intercepts model.^[You can fit a parallel frequentist model
+with `lmer` from the package `lme4`, using `(1|subj)` for the random effects.]
+This model assumes that only the intercept is affected by the participant, but
+that all the participants are affected equally by the experimental
+manipulation.
+
+
+<!--
+I have to think about how to explain this:
+
+ ^[Notice that this model assumes that there are faster and slower
+participants, but that the effect of attachment in **log-scale**, $\beta$, is
+the same for every participant. Even though the adjustment is not on the slope
+$\beta$, but on the intercept $\alpha$, this does have an influence on the
+slope. This is so, because we are capturing part of the variance between
+participants instead of wrongly associating it to noise as we do in the
+complete pooling model ($M_{cp}$).]
+
+there are two things, the beta in comparison with f.e. model changes because we are capturing variance in the alpha
+the effect by subject in ms is different because of the log-scale
+ -->
+
+* Model $M_{vi}$ assumptions:
+
+1. RTs are log-normally distributed.
+2. Some aspects of the reading speed depend on the participant.
+3. There can be a difference in RTs between the sentences with N1 attachment and N2 attachment.
+4. **Likelihood**:
+
+\begin{equation}
+RT_n \sim LogNormal(\mu_n,\sigma)
+\end{equation}
+with $\mu_n = \alpha + u_{i[n]} + x_n \cdot \beta$
+
+
+5. **Priors**:
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0,10)\\
+\beta  &\sim Normal(0,1)\\
+\sigma  &\sim Normal(0,1) \text{ for } \sigma > 0\\
+\tau_u &\sim Normal(0,1) \text{ for } \tau_u > 0\\
+u_i &\sim Normal(0,\tau_u)
+\end{aligned}
+\end{equation}
+* $n$ represents each obs, the $n$th row in the data frame.
+* $i$ represents each subj, and $i[n]$ is the subject that corresponds to observation $n$, following @GelmanHill2007's notation.
+
+In this model each subject has his or her own adjustment $u_i$, if $u_i$ is
+positive, the subject will be slower than the average subject, if it's
+negative he or she will be faster. Notice that since we are estimating
+$\alpha$ and $u$ at the same time and we assume that the average of the $u$'s
+is 0 (since it is assumed to be normally distributed with mean of 0), whatever
+the subjects have in common "goes" to $\alpha$, and $u$ only "absorbs" the
+differences between participants through the variance component $\tau_u$.
+This model has then two *variance components*: $\sigma$ and $\tau_u$.
+Parameters of parameters such as $\tau_u$ are often called *hyperparameters*
+and their priors, *hyperpriors*.
+
+<!-- Lena suggests graphical notation -->
+
+Some important (and sometimes confusing) points:
+
+* Why does $u$ have a mean of 0? 
+
+Because we want $u$ to capture only differences between subjects, we could
+achieve the same by assuming that $\mu_n = \alpha_{i[n]} + \beta \cdot x_n$
+and  $\alpha_i \sim normal(\alpha,\tau_u)$; $\alpha \sim normal(0,10)$. And in
+fact, that's another common way to write the model.
+
+* Why do the adjustments $u$ have a normal distribution?
+
+Mostly because of "convention", that's the way it's implemented in most
+frequentist mixed models. But also because if we don't know anything about the
+distribution besides its mean and variance, the normal distribution is the
+most conservative assumption [see also chapter 9 of @mcelreath2015statistical].
+
+ 
+We can implement this in Stan in the following way: 
+
+```{r Mvi_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Mvi.stan"), sep = "\n")
+```
+
+We can get the difference between  high and low (N1 vs.\ N2) attachment in
+*ms* for each subject by generating `overall_difference`. 
+
+Save the model as `Mvi.stan`.
+
+
+```{r Mvi-fit, message=F,warning=T, results="hide"}
+fit_Mvi <- stan(file = 'Mvi.stan', 
+    data = Swets_list)
+```
+
+As usual we inspect convergence:
+
+```{r, fig.height=2, eval=F}
+print(fit_Mvi, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma","tau_u"))
+traceplot(fit_Mvi, pars=c("alpha","beta","sigma","tau_u"))
+```
+
+And we'll examine the marginal posterior, and the posteriors of our
+generated quantities.
+
+```{r }
+print(fit_Mvi, probs =c(.025,.5,.975), pars=c("beta","overall_difference"),digits=3)
+```
+
+```{r post_fit_Mvi, fig.height=2, message=F}
+posterior_Mvi <- as.array(fit_Mvi)
+
+mcmc_hist(posterior_Mvi, pars = c("beta", "overall_difference"))
+```
+
+<!-- 
+this is interesting but it might be too much for now, subjects show different effects, just because the intercept moves
+{r areas_fit_Mvi, fig.height=10, message=F}
+# mcmc_areas(posterior_Mvi, regex_pars = c("effect_by_subj"), prob = 0.8, prob_outer = 0.95, point_est = "mean"
+)
+-->
+
+We can also calculate how certain we are that the effect across subjects is
+larger than 0.
+
+```{r}
+mean(rstan::extract(fit_Mvi)$beta>0)
+```
+
+### (Uncorrelated) varying intercept varying slopes model ($M_{uvivs}$)
+
+Even though we may only care about $\beta$, that is the effect of the
+manipulation in general and not on specific subjects, the previous model makes
+the strong assumption that every participant will be affected equally by the
+manipulation (on the log-scale). One problem with this approach is that if
+a few subjects are strongly affected by the manipulation while the rest
+aren't, we will think that all of them are affected. In addition, we may be
+interested in the differences between the participants: are all participants
+equally affected? How general is the effect of attachment site in the
+population? We can relax the strong assumption of only one effect by letting
+the effect vary by participants. This is also referred to as adding a varying
+slope (since in the linear model the *effect* is the slope of the line that
+represents the fit).
+
+
+* Model $M_{uvivs}$ assumptions:
+
+1. RTs are log-normally distributed.
+2. Some aspects of the reading speed and the effect of the site of attachment  depend on the participant. But these two aspects are unrelated.
+3. There can be a difference in RTs between the sentences with N1 attachment and N2 attachment.
+4. **Likelihood**:
+
+\begin{equation}
+RT_n \sim LogNormal(\mu_n,\sigma)
+\end{equation}
+with $\mu_n = \alpha + u_{1i[n]} + x_n \cdot  (\beta + u_{2i[n]})$
+
+
+5. **Priors**:
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0, 10) \\
+\beta  &\sim Normal(0, 1) \\
+\sigma  &\sim Normal(0, 1) \text{ for } \sigma > 0 \\
+\tau_{u_1} &\sim Normal(0, 1) \text{ for } \tau_{u_1} > 0 \\
+\tau_{u_2} &\sim Normal(0, 1) \text{ for } \tau_{u_2} > 0 \\
+u_{1i} &\sim Normal(0, \tau_{u_1}) \\
+u_{2i} &\sim Normal(0, \tau_{u_2})
+\end{aligned}
+\end{equation}
+
+* $n$ represents each obs, the $n$th row in the data frame
+* $i$ represents each subj, and $i[n]$ is the subject that corresponds to
+  observation $n$.
+
+In this model, while $\tau_{u_1}$ represents the variation on the intercept
+(general speed) across subjects, $\tau_{u_2}$ represents the variation on the effect of the
+manipulation across subjects.
+
+
+We can implement this in Stan in the following way: 
+
+```{r Muvivs_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Muvivs.stan"), sep = "\n")   
+```
+
+<!-- Now the model doesn't assume only *one* effect, but one for each subject.
+We can get the difference between  high and low (N1 vs.\ N2) attachment in
+*ms* for each subject by generating `average_beta`. Notice that the model doesn't
+assume an overall effect, but we can average the effect of every subject.
+ -->
+Save the model as `Muvivs.stan`.
+
+
+```{r Muvivs-fit, message=F,warning=T, results="hide"}
+fit_Muvivs <- stan(file = 'Muvivs.stan', 
+    data = Swets_list)
+
+```
+
+We see that there are warnings. As we increase the complexity and the number of parameters, the sampler has a harder time exploring the parameter space:
+
+```{r, fig.height=4}
+print(fit_Muvivs, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma","tau_u1","tau_u2"))
+traceplot(fit_Muvivs, pars=c("alpha","beta","sigma","tau_u1","tau_u2"))
+```
+
+There's something wrong in the estimation of `tau_u2`. This parameter is specially problematic because it is bounded by 0 (it's a standard deviation), there is not too much information about it (every subject is providing only one data point), and it is quite small. This makes the exploration of the sampler quite hard. There are two options, we might just remove the varying slope since it's not giving us much information anyway (and I would recommend this), or we can alleviate this problem by re-parameterizing the model. In general, this would be the trickiest part of modeling, and I suggest to read chapter 21 of Stan  manual [@Stan2017] for more about re-parametrization. The following box explains the specific re-parametrization we use for the improved version of our Stan code.
+
+\begin{nbox}{A simple re-parametrization}
+
+The parser can explore the parameter space more easily if it doesn't have to worry about the scale. We want to assume the following
+
+\begin{equation}
+\mathbf{u}_{2} \sim Normal(0, \tau_{u_2})
+\end{equation}
+
+where $\mathbf{u}_{2}$ is the column vector of $u_{2i}$'s.
+
+We can transform $u_2$ to z-scores as follows
+
+\begin{equation}
+\mathbf{u}_{raw2} =\frac{\mathbf{u}_{2} - 0}{\tau_{u_2}}
+\end{equation}
+
+where 
+\begin{equation}
+\mathbf{u}_{raw2} \sim Normal(0, 1)
+\end{equation}
+
+Now $\mathbf{u}_{raw2}$ is easier to sample because it doesn't depend on another parameter and its scale is 1. We can derive the actual parameter we care about by doing the following
+
+\begin{equation}
+\mathbf{u}_{2} = \mathbf{u}_{raw2} \cdot \tau_{u_2}
+\end{equation}
+
+\end{nbox}
+
+The following Stan code uses the previous re-parametrization.
+
+```{r Muvivs_reparam_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Muvivs_reparam.stan"), sep = "\n") 
+```
+
+Save the above code as `Muvivs_reparam.stan`.
+
+```{r Muvivs_reparam-fit, message=F,warning=T, results="hide"}
+fit_Muvivs_reparam <- stan(file = 'Muvivs_reparam.stan', 
+    data = Swets_list)
+```
+
+We see that the $n_{eff}$ for `tau2` increased and traceplots look better.
+
+```{r, fig.height=4}
+print(fit_Muvivs_reparam, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma","tau_u1","tau_u2"))
+traceplot(fit_Muvivs_reparam, pars=c("alpha","beta","sigma","tau_u1","tau_u2"))
+```
+
+
+Only now we can examine the marginal posterior, and the posteriors of our
+generated quantities.
+
+```{r }
+print(fit_Muvivs_reparam, probs =c(.025,.5,.975), pars=c("beta","overall_difference"),digits=3)
+```
+
+```{r post_Muvivs_reparam, fig.height=2, message=F}
+posterior_Muvivs <- as.array(fit_Muvivs_reparam)
+
+mcmc_hist(posterior_Muvivs, pars = c("beta", "overall_difference"))
+
+```
+
+We can also calculate how certain we are that the common effect across subjects is
+larger than 0.
+
+```{r}
+mean(rstan::extract(fit_Muvivs_reparam)$beta>0)
+```
+
+And we could examine how each subject is being affected by the manipulation (on the millisecond scale):
+
+```{r areas_Muvivs_reparam, message=F, fig.height=10}
+mcmc_areas(posterior_Muvivs, regex_pars = c("difference_by_subj"), prob = 0.8, prob_outer = 0.95, point_est = "mean"
+)
+```
+
+Something important to notice is that this model takes into account that participants are different, but also reduces the uncertainty of their estimates because it assumes that there are commonalities between them. This is usually called *shrinkage*. We can see the shrinkage of the estimates of this model when we compare them with the no pooling model ($M_{np}$).
+
+```{r comparison, message=F, fig.height=11}
+# We'll need to make the plot "manually"
+shrinkage <- rstan::extract(fit_Muvivs_reparam)$difference_by_subj
+dim(shrinkage)
+# We apply the following function by columns to get the mean, and 95% credible interval of each subject's difference in ms
+(shrinkage_mean <-  apply(shrinkage,2, mean))
+(shrinkage_lower <-  apply(shrinkage,2, quantile,.025))
+(shrinkage_upper <-  apply(shrinkage,2, quantile,.975))
+shrinkage_df <- data.frame(subj = 1:length(shrinkage_mean), mean=shrinkage_mean,lower=shrinkage_lower,upper=shrinkage_upper)
+shrinkage_df$Model <- "Varying intercept and slope"
+
+no_shrinkage <- rstan::extract(fit_Mnp)$difference_by_subj
+dim(no_shrinkage)
+(no_shrinkage_mean <-  apply(no_shrinkage,2, mean))
+(no_shrinkage_lower <-  apply(no_shrinkage,2, quantile,.025))
+(no_shrinkage_upper <-  apply(no_shrinkage,2, quantile,.975))
+no_shrinkage_df <- data.frame(subj = 1:length(no_shrinkage_mean), 
+                    mean=no_shrinkage_mean,lower=no_shrinkage_lower,upper=no_shrinkage_upper)
+
+no_shrinkage_df$Model <- "No pooling"
+
+models_df <- rbind(shrinkage_df,no_shrinkage_df)
+
+overall_difference <- rstan::extract(fit_Muvivs_reparam)$overall_difference
+
+plot_subj <- ggplot(models_df, aes(ymin=lower, ymax=upper,x=subj,y=mean,color=Model)) 
+plot_subj <- plot_subj + geom_errorbar(position = position_dodge(1)) + geom_point(position = position_dodge(1)) 
+
+# We'll also add the mean and 95% CrI of the overall difference to the plot:
+plot_subj <- plot_subj + geom_hline(yintercept=mean(overall_difference), linetype="dotted") 
+plot_subj <- plot_subj + geom_hline(yintercept=quantile(overall_difference,.025), linetype="dotted",size=.1)
+plot_subj <- plot_subj + geom_hline(yintercept=quantile(overall_difference,.975), linetype="dotted",size=.1)
+
+# Finally we make the plot prettier
+plot_subj <- plot_subj + scale_x_continuous(name="Participant", breaks=1:length(shrinkage_mean)) 
+plot_subj <- plot_subj + scale_y_continuous("Difference in ms") + theme(legend.position = c(.8,.7))
+plot_subj <- plot_subj + coord_flip() 
+
+plot_subj
+```
+
+
+### Correlated varying intercept varying slopes model ($M_{cvivs}$)
+
+The model $M_{uvivs}$ allowed for different reading speeds and effects across
+subjects, but it has the implicit assumption that these are independent. It is
+in principle possible that slower participants will show stronger effects, or
+that slower participants will pay more attention and will be less affected, or that
+there is no relationship at all between reading speed and the effect of the
+site of attachment. We would like a model that can account for that. We model
+the correlation between varying intercepts and slopes, by defining a
+covariance relationship $\boldsymbol{\Sigma}$ between by-subject varying
+intercepts and slopes, and by assuming that both adjustments (intercept and
+slope) come from a multivariate normal distribution $\mathcal{N}$.
+
+
+* Model $M_{cvivs}$ assumptions:
+
+1. RTs are log-normally distributed.
+2. Some aspects of the reading speed and the effect of the site of attachment  depend on the participant, and these two aspects may be related.
+3. There can be a difference in RTs between the sentences with N1 attachment and N2 attachment.
+4. **Likelihood**:
+
+\begin{equation}
+RT_n \sim LogNormal(\mu_n,\sigma)
+\end{equation}
+with $\mu_n = \alpha + u_{1i[n]} + x_n \cdot (\beta + u_{2i[n]})$
+
+
+5. **Priors**:
+\begin{equation}
+\begin{aligned}
+\alpha &\sim Normal(0,10)\\
+\beta  &\sim Normal(0,1)\\
+\sigma  &\sim Normal(0,1) \text{ for } \sigma > 0\\
+{\begin{pmatrix}
+u_{1,i} \\
+u_{2,i}
+\end{pmatrix}}
+&\sim {\mathcal {N}}
+\left(
+{\begin{pmatrix} 
+0\\
+0
+\end{pmatrix}}
+,\boldsymbol{\Sigma_u} \right) 
+\end{aligned}
+\end{equation}
+
+* $n$ represents each obs, the $n$th row in the data frame.
+* $i$ represents each subj, and $i[n]$ is the subject that corresponds to observation $n$.
+
+In this model, we define the vector $\mathbf{u}$
+as coming from a multivariate normal distribution with a variance-covariance
+matrix $\boldsymbol{\Sigma_u}$. This matrix has the variances of the adjustment to the intercept and to the
+slopes respectively along the diagonal, and the covariances on the off-diagonal (lower and upper triangles). The covariance $Cov(X,Y)$ between two variables $X$ and $Y$ is
+defined as the product of their correlation $\rho$ and their standard
+deviations $\sigma_X$ and $\sigma_Y$, such that, $Cov(X,Y) = \rho
+\sigma_X \sigma_Y$.^[Notice that I'm calling the SD of the $u$'s $\tau$ and not
+$\sigma$, don't get too attached to the specific Greek letter!]
+
+\begin{equation}
+\boldsymbol{\Sigma_u} = 
+{\begin{pmatrix} 
+\tau_{u_1}^2 & \rho_u \tau_{u_1} \tau_{u_2} \\ 
+\rho_u \tau_{u_1} \tau_{u_2} & \tau_{u_2}^2
+\end{pmatrix}}
+\end{equation}
+
+In addition, it has a correlation matrix associated:^[Since we have two random variables, there is only one correlation in the matrix between $u_1$ and $u_2$. With 3 random variables (i.e., adding $u_3$), we end up with a $3 \times 3$ correlation matrix that includes three different correlations $\rho_{u_{1,2}}=\rho_{u_{2,1}}$, $\rho_{u_{1,3}}=\rho_{u_{3,1}}$, and $\rho_{u_{2,3}}=\rho_{u_{3,2}}$.]
+
+\begin{equation}
+{\begin{pmatrix} 
+1 & \rho_u  \\ 
+\rho_u  & 1
+\end{pmatrix}}
+\end{equation}
+
+We still need to define a prior for $\boldsymbol{\Sigma_u}$. We can decompose
+our prior into the scales and  correlation matrix in the following
+way:
+
+\begin{equation}
+\begin{aligned}
+\boldsymbol{\Sigma_u} &= diag\_matrix(\tau_u) \cdot \boldsymbol{\rho_u} \cdot diag\_matrix(\tau_u)\\
+&=
+{\begin{pmatrix} 
+\tau_{u_1} & 0 \\ 
+0  & \tau_{u_2}
+\end{pmatrix}}
+{\begin{pmatrix} 
+1 & \rho_u  \\ 
+\rho_u  & 1
+\end{pmatrix}}
+{\begin{pmatrix} 
+\tau_{u_1} & 0 \\ 
+0  & \tau_{u_2}
+\end{pmatrix}}
+\end{aligned}
+\end{equation}
+
+And now we need priors for the $\tau_u$s and for $\rho_u$:
+
+\begin{equation}
+\begin{aligned}
+\tau_{u_1} &\sim Normal(0,1) \text{ for } \tau_{u_1} > 0\\
+\tau_{u_2} &\sim Normal(0,1) \text{ for } \tau_{u_2} > 0\\
+\rho_u &\sim LKJcorr(2) 
+\end{aligned}
+\end{equation}
+
+The basic idea of the  LKJ correlation distribution is that as its parameter
+(usually called *eta*, $\eta$, here is $2$) increases, the prior increasingly concentrates around
+the unit correlation matrix (i.e., favors less correlation: ones in the
+diagonals and values close to zero in the lower and upper triangles). At $\eta
+= 1$, the LKJ correlation distribution is uninformative (similar to
+$Beta(1,1)$), at $\eta < 1$, it favors extreme correlations  (similar to
+$Beta(a<1,b<1)$).
+
+We would end up with a model that looks like this (I'm omitting the data
+declaration, which is as before, and the re-parametrization). 
+
+```
+parameters {
+  real<lower = 0> sigma;
+  vector<lower = 0>[2] tau_u;
+  real alpha;
+  real beta;
+  corr_matrix[2] rho_u;
+  matrix[2, N_subj] u_t;
+  }
+transformed parameters {
+  matrix[N_subj, 2]  u_t; // matrix of 2 rows and N_subj columns
+  vector[N] mu;
+  mu = alpha + u_t[subj, 1] +  x .* (beta + u_t[subj, 2]);
+}
+model {
+  vector[N_obs] mu;
+  rho_u ~ lkj_corr(2);
+  alpha ~ normal(0,10);
+  beta  ~ normal(0,1);
+  sigma ~ normal(0,1);
+  tau_u ~ normal(0,1);
+  for(i in 1:N_subj)
+    u_t[,i] ~ multi_normal(rep_vector(0, 2), quad_form_diag(rho_u, tau_u));
+  RT ~ lognormal(mu, sigma); 
+}
+```
+
+There are a couple of new things in the previous code.
+
+* `u_t` is a transposed version of the $\boldsymbol{u}$ that I presented before. The transposition allows us to do
+the element-wise multiplication `x .* u_t[subj,2]` since the two vectors(`x` and `u_t[subj,2]`) have the same number of
+rows.
+* `matrix[n,m] M;` defines a matrix of n rows and m columns called M.
+* `corr_matrix[n] M;` defines a (square) matrix of n rows and n columns called M, symmetrical around a diagonal of ones.
+* `rep_vector(X, n)` creates a vector with n columns filled with X.
+* `quad_form_diag(M, V)` a *quadratic form* using the column vector V as a diagonal matrix, i.e., in Stan notation: `diag_matrix(V) * M * diag_matrix(V)`. Notice that `*` in Stan is matrix multiplication, and `.*` is element-wise multiplication.^[In R, `%*%` is matrix multiplication and `*` is element-wise multiplication.]
+* `M[,i]` creates a  vector of  the column *i*  of matrix M. 
+
+This model is for illustration purposes, there are more efficient ways to code
+this. And the efficiency considerations start to be important in hierarchical
+models. In practice, we will use a Cholesky factorization that we detail below [see also
+@SorensenEtAl2016]. 
+
+
+Given a correlation matrix $\boldsymbol{\rho_u}$,^[a symmetric positive
+definite or semi-definite matrix] we can get a lower triangular matrix $\mathbf{L_u}$ such that
+$\mathbf{L_u}
+\mathbf{L_u}^T=\boldsymbol{\rho_u}$. The matrix $\mathbf{L_u}$ is called the
+Cholesky factor of $\mathbf{\rho_u}$.^[You can think of it as the *square root* of the
+matrix $\boldsymbol{\rho_u}$.]
+
+\begin{equation}
+\mathbf{L_u}  =
+{\begin{pmatrix} 
+l_{11} & 0 \\ 
+l_{21}  & l_{22}
+\end{pmatrix}}
+\end{equation}
+
+-----
+
+*The following R code is only for illustration, we'll end up coding everything directly in Stan. As an example, let's assume a correlation of $0.8$.*
+```{r}
+rho <- .8
+#Correlation matrix
+(rho_u <- matrix(c(1,rho,rho,1),ncol=2))
+
+# Cholesky factor: (we transpose it so that it looks the same as in Stan)
+(L_u <- t(chol(rho_u))) 
+# We verify that we recover rho_u, %*% indicates matrix multiplication (=! element-wise multiplication) 
+L_u %*% t(L_u)
+```
+---------
+
+For the previous model $M_{uvivs}$, it was enough to produce the adjustment of the
+intercept and of the slope from normal distributions, but now we want the
+adjustments to be correlated. We can use the Cholesky factor to generate
+correlated random variables in the following way.
+
+1.  We generate uncorrelated values that will be associated with each
+    adjustment $u$ from a $Normal(0,1)$. In our case we have $u_1$ and $u_2$, so
+    we will generate:
+
+$$z_{u_1} \sim Normal(0,1)$$
+$$z_{u_2} \sim Normal(0,1)$$
+
+------
+
+*For example, assuming only 10 subjects.*
+```{r}
+N_subj <- 10
+(z_u1 <- rnorm(N_subj,0,1))
+(z_u2 <- rnorm(N_subj,0,1))
+```
+------
+
+2. By multiplying the Cholesky factor by our $z$'s we generate a matrix of correlated variables (with standard deviation of 1).
+
+$$
+\mathbf{L_u}\cdot \mathbf{z_u}  =
+{\begin{pmatrix} 
+l_{11} & 0 \\ 
+l_{21}  & l_{22}
+\end{pmatrix}}
+{\begin{pmatrix}
+z_{u_{1,subj=1}} & z_{u_{1,subj=2}} & ... & z_{u_{1,subj=N_{subj}}} \\
+z_{u_{2,subj=1}} & z_{u_{2,subj=2}} & ... & z_{u_{2,subj=N_{subj}}}
+\end{pmatrix}}
+$$
+
+
+$$
+\mathbf{L_u}\cdot \mathbf{z_u}  =
+{\begin{pmatrix}
+l_{11} \cdot z_{u_{1,1}} + 0 \cdot z_{u_{2,1}} & l_{11} \cdot  z_{u_{1,2}} & ... & l_{11} \cdot z_{u_{1,N_{subj}}} \\
+l_{21} \cdot z_{u_{1,1}} + l_{22} \cdot z_{u_{2,1}} &l_{21} \cdot  z_{u_{1,2}} + l_{22} \cdot z_{u_{2,2}} & ... & l_{11} \cdot z_{u_{1,N_{subj}}} + l_{22} \cdot z_{u_{2,N_{subj}}}
+\end{pmatrix}}
+$$
+
+A very informal explanation of why this works is that we are making the
+variable that corresponds to the slope to be a function of a scaled version of
+the intercept.
+
+----------
+
+*For example:*
+```{r}
+# matrix z_u
+(z_u <- matrix(c(z_u1,z_u2),ncol=N_subj,byrow=T))
+
+L_u %*% z_u
+```
+------------
+
+
+3. The last step is to scale the previous matrix to the desired standard deviation. We define the diagonalized matrix $diag\_matrix(\tau_u)$ as before:
+
+$$
+{\begin{pmatrix} 
+\tau_{u_1} & 0 \\ 
+0  & \tau_{u_2}
+\end{pmatrix}}
+$$
+
+---------
+
+*For example:*
+```{r}
+tau_u1 <- .2
+tau_u2 <- .01
+(diag_matrix_tau <- matrix(c(tau_u1,0,0,tau_u2),ncol=2))
+```
+------------
+
+And we pre-multiply it by the correlated variables with SD of 1 from before:
+
+
+
+$$\mathbf{u} = diag\_matrix(\tau_u) \cdot \mathbf{L_u}\cdot \mathbf{z_u}$$
+
+$$ 
+\mathbf{u}= {\begin{pmatrix} 
+\tau_{u_1} & 0 \\ 
+0  & \tau_{u_2}
+\end{pmatrix}}
+{\begin{pmatrix}
+l_{11} \cdot z_{u_{1,1}}  & l_{11} \cdot  z_{u_{1,2}} & ... & l_{11} \cdot z_{u_{1,N_{subj}}} \\
+l_{21} \cdot z_{u_{1,1}} + l_{22} \cdot z_{u_{2,1}} &l_{21} \cdot  z_{u_{1,2}} + l_{22} \cdot z_{u_{2,2}} & ... & l_{11} \cdot z_{u_{1,N_{subj}}} + l_{22} \cdot z_{u_{2,N_{subj}}}
+\end{pmatrix}}
+$$
+
+$$ 
+\mathbf{u}= 
+{\begin{pmatrix}
+\tau_{u_1} \cdot l_{11} \cdot z_{u_{1,1}}  & \tau_{u_1} \cdot l_{11} \cdot  z_{u_{1,2}} & ... & \tau_{u_1} \cdot l_{11} \cdot z_{u_{1,N_{subj}}} \\
+\tau_{u_2} \cdot (l_{21} \cdot z_{u_{1,1}} + l_{22} \cdot z_{u_{2,1}}) & \tau_{u_2} \cdot (l_{21} \cdot  z_{u_{1,2}} + l_{22} \cdot z_{u_{2,2}}) & ... & \tau_{u_2} \cdot (l_{11} \cdot z_{u_{1,N_{subj}}} + l_{22} \cdot z_{u_{2,N_{subj}})}
+\end{pmatrix}}
+$$
+
+
+------------
+
+*For example:*
+```{r}
+(u <- diag_matrix_tau %*% L_u %*% z_u)
+
+# We should find that the rows are correlated ~.8
+cor(u[1,],u[2,])
+
+# We should be able to recover the tau's as well:
+sd(u[1,])
+sd(u[2,])
+```
+--------------
+
+
+
+Now we can code it in Stan and save it as `Mcvivs.stan`.
+
+```{r Mcvivs_reparam_code, tidy = TRUE, comment="", echo=FALSE}
+cat(readLines("Mcvivs.stan"), sep = "\n")    
+```
+
+
+The new things here are:
+
+* `cholesky_factor_corr[2] L_u`, which defines `L_u` as a lower triangular (of $2 \times 2$)
+  matrix which has to be the Cholesky factor of a correlation. 
+* `diag_pre_multiply(tau_u,L_u)` which simply makes a diagonal matrix out of
+  the vector `tau_u` and multiplies it by `L_u`.
+* `to_vector(z_u)` makes a long vector out the matrix `z_u`
+* `L_u ~ lkj_corr_cholesky(2);` is the Cholesky factor associated with the lkj
+  correlation distribution, such that it implies that `L_u * L_u' ~ lkj_corr(2.0);`. Notice that `'` indicates transposition (while it is `t(.)` in R).
+
+  
+
+We can recover the correlation by adding in the `generated quantities` section a $2 \times 2$ matrix `rho_u`, defined as `rho_u = L_u * L_u';`. 
+
+
+
+
+```{r Mcvivs-fit, message=F,warning=T, results="hide"}
+fit_Mcvivs <- stan(file = 'Mcvivs.stan', 
+    data = Swets_list)
+```
+
+
+We do MCMC-diagnostics as always.
+
+```{r, fig.height=6}
+print(fit_Mcvivs, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma","tau_u","L_u"))
+traceplot(fit_Mcvivs, pars=c("alpha","beta","sigma","tau_u","L_u")) 
+```
+
+Why are `L_u[1,1]` and `L_u[1,2]` just straight lines?
+
+Only now we can examine the posterior distributions to do inference.
+
+```{r }
+print(fit_Mcvivs, probs =c(.025,.5,.975), pars=c("overall_difference","rho_u"),digits=3)
+```
+
+```{r post_Mcvivs, fig.height=2, message=F}
+posterior_Mcvivs <- as.array(fit_Mcvivs)
+mcmc_hist(posterior_Mcvivs, pars = c("beta", "overall_difference","rho_u[1,2]"))
+```
+
+We can calculate, as before, how certain we are that the effect across subjects is
+larger than 0.
+
+```{r}
+mean(rstan::extract(fit_Mcvivs)$beta>0)
+```
+
+```{r, echo=F, results="hide"}
+
+rho_mean <- round(summary(fit_Mcvivs)$summary["rho_u[1,2]","mean"],2)
+rho_high <- round(summary(fit_Mcvivs)$summary["rho_u[1,2]","97.5%"],2)
+rho_low <- round(summary(fit_Mcvivs)$summary["rho_u[1,2]","2.5%"],2)
+```
+
+But more interestingly, there is some weak evidence that slower participants are more likely to show a stronger effect, $\hat\rho_u = `r rho_mean`, 95\%$ credible interval $=[`r rho_low`,`r rho_high`]$. How sure should we be that there is a positive correlation?
+
+
+```{r}
+# We need to extract the samples in the following way, because rho is actually a matrix. When we use the function extract, the first dimension consists of the samples.  See dim(rstan::extract(fit_Mcvivs)$rho_u)
+mean(rstan::extract(fit_Mcvivs)$rho_u[,1,2]>0)
+
+```
+
+
+
+
+### Recovery of the parameters
+
+We are working with  quite a complex model, we need to be sure that the model
+is doing what we build it for. We'll generate fake data, which is similar to
+our data, but where we know the true values of the parameters, and we'll
+examine how well the model recovers them.
+
+```{r fake-data}
+library(MASS)
+
+# We decide how the data should look like.
+# We'll start with fake data similar to our data
+N_subj <- 70
+N_obs <- 24 * N_subj
+x <- rep(c(1,-1), N_obs/2)
+# We create a vector similar to the one in Stan, 
+#that looks like 1,1,1,...,2,2,2,2... 
+# Be careful to pay attention if you're repeating using each= or times=. If you forget to add each then you will generate 1,2,3,.., N_subj, 1,2,3...
+subj <- rep(1:N_subj, each=N_obs/N_subj)
+
+# We could also completely imitate the format of our data.
+
+# N_subj <- length(unique(N1N2$sub))
+
+# N_obs <- length(N1N2$RT)
+
+# x <- N1N2$x
+
+# subj <- as.numeric(as.factor(N1N2$sub))
+
+# These will be the TRUE values, not necessarily the mean of the posterior
+alpha <- 6
+beta <- .05 
+sigma <- .4
+tau_u <- c(0.3,.05)
+rho <- .5
+
+# This matrix is symmetric, so it won't matter, but
+# be careful with how R arranges the matrix values
+Cor_u <- matrix(c(1,rho,rho,1), nrow = 2)
+
+# Variance covariance matrix for 'subj':
+Sigma_u <- diag(tau_u,2,2) %*% Cor_u  %*% diag(tau_u,2,2)
+
+# Let's create the correlated adjustments (here I'm creating a matrix of u, instead of joining two vectors):
+u <- mvrnorm(n = N_subj, c(0,0), Sigma_u)
+
+# Are they correlated as expected?
+cor(u)
+# Are the SDs as expected?
+sd(u[,1])
+sd(u[,2])
+
+# We create a vector of the location for the log-normal distribution: 
+mu <- alpha + u[subj,1] + x * (beta + u[subj,2]) 
+RT <- rlnorm(N_obs, mu, sigma)
+
+fake_data_list <- list(RT=RT,
+                      N=N_obs,
+                      subj=subj,
+                      N_subj=N_subj,
+                      x=x) 
+```
+
+```{r fake_Mcvivs-fit, message=F,warning=T, results="hide"}
+fit_fake_Mcvivs <- stan(file = 'Mcvivs.stan', data = fake_data_list)
+ 
+```
+
+
+
+We do MCMC-diagnostics:
+
+```{r, fig.height=4}
+print(fit_fake_Mcvivs, probs =c(.025,.5,.975), pars=c("alpha","beta","sigma","tau_u","L_u"))
+traceplot(fit_fake_Mcvivs, pars=c("alpha","beta","sigma","tau_u","L_u"))
+```
+
+
+Let's see if the true values are generally inside the 95% credible intervals.
+
+```{r post_fakeMcvivs, fig.height=6, message=F}
+# I save the true values with the same names as the Stan model use
+true_values <- data.frame(Parameter=c("alpha","beta","sigma","tau_u[1]","tau_u[2]","rho_u[1,2]"), value=c(alpha,beta,sigma,tau_u,rho))
+posterior_fakeMcvivs <- as.array(fit_fake_Mcvivs)
+
+# Data frame with the summary
+fakeMcvivs_summary <- data.frame(summary(fit_fake_Mcvivs)$summary)
+fakeMcvivs_summary$Parameter <-rownames(fakeMcvivs_summary)
+# For some reason, R transforms the 2.5% and 97.5% into X2.5. and X97.5. when we transform the summary to a data frame
+fakeMcvivs_summary <- fakeMcvivs_summary[c("Parameter","mean","X2.5.","X97.5.")]
+fakeMcvivs_summary <- subset(fakeMcvivs_summary,Parameter %in% c("alpha","beta","sigma","tau_u[1]","tau_u[2]","rho_u[1,2]"))
+
+# We plot the historgram
+p_hist <-  mcmc_hist(posterior_fakeMcvivs, pars = c("alpha","beta","sigma","tau_u[1]","tau_u[2]","rho_u[1,2]"))
+
+# We add the summaries (notice that columns with strange characters need to go inside ``)
+p_hist <- p_hist + geom_vline(data=fakeMcvivs_summary, aes(xintercept=mean),linetype="dashed")
+p_hist <- p_hist + geom_vline(data=fakeMcvivs_summary, aes(xintercept=`X2.5.`),linetype="dotted")
+p_hist <- p_hist + geom_vline(data=fakeMcvivs_summary, aes(xintercept=`X97.5.`),linetype="dotted")
+
+# We add the true values in red
+p_hist <- p_hist + geom_vline(data=true_values, aes(xintercept=value),color="red")
+
+p_hist
+```
+
+
+We see that the true value is in general inside the 95% credible interval (and
+in fact it should be there for 95% of the parameters), but there's a lot of
+uncertainty in the parameter we care about, `beta`. Take into account that this is
+the best case scenario, we are assuming that the data are generated in the
+same manner as the likelihood. This will never happen in real life,
+but it can give us an idea whether the model is doing what it should be doing, and
+what's our upper limit on certainty in the inference: The model may work fine when the data is generated similarly to the likelihood that we assume, but may not work well if the data is generated in a very different way.
+
+
+## Why should we take the trouble of fitting a Bayesian hierarchical model?
+
+During these last two sessions we have discussed a way  to add a hierarchical
+structure to the location of the normal and the log-normal distributions (by
+having these $u$'s that go inside the parameter $\mu$ of the distributions).
+Carrying out Bayesian data analysis clearly requires much more effort
+than fitting a frequentist model: we have to define priors, verify that our
+model works, and decide how to interpret the results. By comparison, fitting a
+linear mixed model using `lme4` consists of only one single line of code; there are, of course, many assumptions made, but they are hidden from us.
+
+We want to emphasize the following points regarding the reason for fitting Bayesian hierarchical models [we discuss more thoroughly the advantages of Bayesian modeling in general in @NicenboimVasishth2016].
+
+<!--  and also non-linear models,
+including highly complex cognitive models [For an accessible introduction of Bayesian methods for cognitive modeling see @LeeWagenmarks2014].
+.
+ -->
+
+* For linear mixed models,  one strength of Bayesian models is that we can fit
+models with a full random structure that would not converge with frequentist
+methods or would yield overestimates of correlations between the random
+effects [@BatesEtAlParsimonious]. Some examples are @HofmeisterVasishth2014, @HusainEtAl2014, and @FrankEtAl2015.
+
+* The same approach we used here can be used to extend any generalized linear
+  model (such as logistic regression when our dependent variable is binary such as response accuracy) or non-linear model. This includes useful models that are
+  rarely used in psycholinguistics such as multi-logistic regression (e.g.,
+  accuracy in some task with more than two answers), ordered logistic (e.g.,
+  ratings), and  models with a shifted log-normal distribution [see @NicenboimEtAl2016Frontiersb; @Rouder2005].
+
+* Complex cognitive models can be extended hierarchically in a
+  straightforward way, see @Lee2011 and
+  @LeeWagenmarks2014.^[Notice
+  the distinction between using Bayesian methods for modeling cognitive
+  processes and assuming that (some aspect of) the mind is Bayesian.] Some
+  examples of hierarchical computational cognitive models in psycholinguistics
+  are @LogacevVasishth2015, @NicenboimVasishth2016Models,
+  @VasishthEtAl2017Modelling, and @VasishthEtAl2017Feature.
+
+
+\newpage
+
+\begin{Sbox}{\subsection{Key concepts}}
+\begin{itemize}
+\item Advantages (and disadvantages) of hierarchical models.
+\item Complete pooling vs.\ no pooling.
+\item Varying intercepts and slopes and their correlation.
+\item Cholesky factorization.
+\item Simulation of data from a hierarchical model.
+\end{itemize}
+\end{Sbox}
+
+\begin{qbox}{\subsection{Exercises}}
+\begin{enumerate}
+    \item By-items random effects. Everything that we said about subjects is also relevant for items, it could be that some items are harder than others, biasing the preference more towards N1 or N2 attachment.
+  \begin{enumerate}
+    \item Assume that the observations depend completely on the specific item
+    ($M_{np}'$). (No pooling model). What is the posterior for the average
+    beta (Mean and 95\% credible interval)? For how many items  are you 95\% sure
+    that there is an effect?
+    \item Now build a model with by-participant and by-item correlated varying
+    intercept and varying slopes ($M_{cvivs}'$). Is there more variance in the
+    by-participants or by-items adjustments of this model? How is the
+    uncertainty of the \verb|overall_difference| in comparison with original
+    $M_{cvivs}$?
+    \item Compare the \verb|effect_by_item| of $M_{cvivs}'$ with $M_{np}'$, plotting the
+    items of both models together. Is there shrinkage?
+    \item Optional. The original experiment had 3 conditions, N1 attachment,
+     N2 attachment, and ambiguous attachment. It was hypothesized that N2 would
+     be faster than N1 and than the ambiguous condition would be faster than N2.
+    Try to fit a by-participant and by-item correlated varying intercept and
+    varying slopes model (a.k.a full random effects model). Tip: You will need
+    two vectors of predictors now, two parameters for the effect, and thus two
+   ``effect'' adjustments for items and two for subjects.
+   \end{enumerate}
+\item Fake data simulation.
+  \begin{enumerate}
+    \item Run the fake data simulation a couple of times as it is and fit it with the model $M_{cvivs}$. Verify that 50\% of the time the true values are inside the \textit{50\%} credible intervals.
+    \item Run the fake data simulation with 20 subjects. What happens?
+    \item Change the true value of $\beta$ to $0.005$ and run the fake data simulation. What is the true value of the difference between conditions in milliseconds? What is the posterior distribution of $\beta$ now according to the model?
+  \end{enumerate}
+\end{enumerate}
+\end{qbox}
+
+
+
+
+## References
