@@ -1,5 +1,9 @@
 # Introduction to Bayesian modeling
 
+## Suggestions on how to read this section
+
+For a first pass, it may be best to start with section 1.7, and then return to sections 1.2 to 1.6 as needed. Some may prefer to read this section in the order provided.  
+
 ## Introduction
 
 The basic idea we will explore in this course is
@@ -2398,7 +2402,8 @@ Note that
 P(\hbox{data}\mid \theta) \propto \theta^{46} (1-\theta)^{54}
 \end{equation}
 
-So, to get the posterior, we just need to work out a prior distribution $f(\theta)$.
+So, to get the posterior, we just need to work out a prior distribution $f(\theta)$. **Note that we use $\theta$ and p interchangeably when talking about the probability parameter for the binomial.** We will correct this in a future edition of these notes.
+<--! to-do-->
 
 \begin{equation}
 f(\theta\mid \hbox{data}) \propto f(\hbox{data}\mid \theta) f(\theta)
@@ -2761,9 +2766,9 @@ pnorm(1.96)
 
 So, we can compute summary statistics using simulation. However, if we only know up to proportionality the form of the distribution to sample from, how do we get these samples to summarize from? Monte Carlo Markov Chain (MCMC) methods provide that capability: they allow you to sample from distributions you only know up to proportionality.
 
-\textbf{Markov chain sampling}
+### Markov chain sampling
 
-We have been doing non-Markov chain sampling in the introductory course:
+We have been doing non-Markov chain sampling when we used rnorm:
 
 ```{r}
 indep.samp<-rnorm(500,mean=0,sd=1)
@@ -3133,7 +3138,7 @@ y[i]<-rnorm(1,mu.y+rho*sd.y*((x[i] - mu.x)/sd.x),
 
 We can visualize this as well:
 
-```{r,fig.cap="Bivariate posterior using Gibbs sampling."}
+```{r,eval=FALSE}
 bivar.kde<-kde2d(x,y)
 for(i in 1:100){
 persp(bivar.kde,phi=10,theta=i,shade=0,border=NA,
@@ -3142,6 +3147,7 @@ persp(bivar.kde,phi=10,theta=i,shade=0,border=NA,
 ##Sys.sleep(0.1)
 }
 ```
+
 
 We can plot the ``trace plot'' of each density, as well as the marginal density:
 
