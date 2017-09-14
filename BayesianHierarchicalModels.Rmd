@@ -592,7 +592,7 @@ Some important (and sometimes confusing) points:
 
 Because we want $u$ to capture only differences between subjects, we could
 achieve the same by assuming that $\mu_n = \alpha_{i[n]} + \beta \cdot x_n$
-and  $\alpha_i \sim normal(\alpha,\tau_u)$; $\alpha \sim normal(0,10)$. And in
+and  $\alpha_i \sim Normal(\alpha,\tau_u)$; $\alpha \sim Normal(0,10)$. And in
 fact, that's another common way to write the model.
 
 * Why do the adjustments $u$ have a normal distribution?
