@@ -6,7 +6,7 @@ Matlab, etc.). We will focus on the package `rstan` that integrates Stan
 to R. In Stan, we first define how the structure of the data looks like, the parameters we want
 to estimate, and then the priors  and likelihood. Stan uses a variant of
 Hamiltonian Monte Carlo (HMC), called No-U-Turn sampler (NUTS), which is much
-more efficient than our handcrafted Metropolis sampler, and also than the traditional Gibbs
+more efficient than most handcrafted samplers, and also than the traditional Gibbs
 sampler used in other probabilistic languages such as (Win)BUGS [@lunn2000winbugs] and JAGS [@plummer2016jags].
 
 <!-- Hoffman, M. D. and Gelman, A. (2011). The no-U-turn sampler: Adaptively setting
@@ -74,7 +74,7 @@ more types, but we'll start using the following ones. Another difference from R 
 
 ## A first example \label{sec:first}
 
-As a first example, we will look at the analytical example from Session 09. Recall that we wanted to study whether comprehension of non-canonical sentences in individuals with aphasia is at chance level. The data showed 46 correct responses out of 100. Save this as `firstmodel.stan` (don't run it in R).
+As a first example, we will look at on of the analytical example presented before. Recall that we wanted to study whether comprehension of non-canonical sentences in individuals with aphasia is at chance level. The data showed 46 correct responses out of 100. Save this as `firstmodel.stan` (don't run it in R).
 
 ```{r firstmodel_stan_code, tidy = TRUE, comment="", echo=FALSE}
 cat(readLines("firstmodel.stan"), sep = "\n")  
@@ -150,12 +150,9 @@ These issues **should not be ignored**! See the Appendix \ref{sec:Appendix} for 
 
 ## A small experiment \label{sec:small}
 
-Now we will focus on a more interesting example. We will fit the same data
-that we used in the Exercises from the previous session, but this time with Stan. The file \verb|1.dat| contains data of a subject (actually, me) pressing the space bar without reading in a self-paced reading experiment.
+Now we will focus on a more interesting example. The file \verb|1.dat| contains data of a subject (actually, me) pressing the space bar without reading in a self-paced reading experiment.
 
-### Preprocessing the data
-
-You should have done this already:
+### Preprocessing of the data
 
 ```{r, reading_noreading}
 noreading_data <- read.table(header = F,"data/1.dat",encoding="latin1")
@@ -226,8 +223,10 @@ Save it as ```no_reading_1.stan```.
 
 ### Running the Stan model
 
-This is the same probabilistic model that we implemented with our handcrafted
-Metropolis sampler in 1.2.1.2. Before we fit it to our real data, let's verify
+<!-- This is the same probabilistic model that we implemented with our handcrafted
+Metropolis sampler in 1.2.1.2.
+ -->
+ Before we fit it to our real data, let's verify
 what happens with fake data.
 
 ```{r, fake_data}
@@ -248,14 +247,17 @@ fit_fake <- stan(file = 'noreading_1.stan',  data = fake_list)
 
 ```
 
-We see that Stan is much more efficient than our homemade sampler, it converges with fewer iterations:
+<!-- We see that Stan is much more efficient than our homemade sampler, it converges with fewer iterations: -->
+
+We see that the model converges:
 
 ```{r traceplot_fit_fake, fig.height=2}
 traceplot(fit_fake)
 
 ```
 
-And we get approximately the same posteriors:
+<!-- And we get approximately the same posteriors: -->
+And we get the following posterior distributions:
 
 ```{r}
 print(fit_fake, probs =c(.025,.5,.975), pars=c("mu","sigma"))
@@ -410,8 +412,7 @@ pressing the space bar. And maybe how strong  this effect was.
 
 ### Preprocessing the data
 
-You might have preprocessed  your data for the exercises of the previous
-session: we need to have data about the number of times the space bar was
+We need to have data about the number of times the space bar was
 pressed for each observation, and add it to our list. It's a good idea to
 center the number of presses (a covariate) to have a
 clearer interpretation of the intercept. In general, centering predictors is
@@ -740,7 +741,7 @@ print(fit_noreading_log, probs =c(.025,.5,.975), pars=c("beta"),digits=5)
 ### Summarizing the posterior and inference
 
 ```{r, echo=F, results="hide"}
-options(scipen=999, digits=5)
+options(scipen=999, digits=6)
 
 beta_mean <- round(summary(fit_noreading_log)$summary["beta","mean"],4)
 beta_high <- round(summary(fit_noreading_log)$summary["beta","97.5%"],4)
@@ -789,7 +790,7 @@ linear the effect won't be the same across the whole experiment; see Exercise
 
 
 
-### Posterior predictive checks and distribution of summary statistics
+### Posterior predictive checks and distribution of summary statistics 
 
 We can now verify whether our predicted datasets look more similar to the real dataset.
 
