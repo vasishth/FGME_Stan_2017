@@ -1449,6 +1449,3 @@ effects [@BatesEtAlParsimonious]. Some examples are @HofmeisterVasishth2014, @Hu
 \end{qbox}
 
 
-
-
-## References

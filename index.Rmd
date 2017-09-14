@@ -38,17 +38,24 @@ fig_height: 4
 ```{r setup, include=FALSE,cache=F}
 knitr::opts_chunk$set(tidy = T,cache=T, autodep=TRUE,tidy.opts=list(width.cutoff=59))
 options(htmltools.dir.version = FALSE)
-options(scipen=999, digits=2)
+options(scipen=999, digits=3)
 library(ggplot2)
 theme_set(theme_classic()) 
 ```
+\newpage
 
-<!-- 
 ```{r child = 'IntroductionBayes.Rmd'}
-``` -->
+```
+
+\newpage
 
 ```{r child = 'IntroductionStan.Rmd'}
 ```
+\newpage
 
 ```{r child = 'BayesianHierarchicalModels.Rmd'}
 ```
+
+\newpage
+
+# References

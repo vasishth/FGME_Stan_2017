@@ -1,4 +1,6 @@
-# Introduction
+# Introduction to Bayesian modeling
+
+## Introduction
 
 The basic idea we will explore in this course is
 Bayes' theorem, which, as Lunn et al 2012 
@@ -9,7 +11,7 @@ A central departure from frequentist methodology is that the unknown population 
 
 \textbf{Notational conventions}: A binomial distribution, $n$ trials each with probability $\theta$ of occurring, is written $Bi(\theta,n)$. Given a random variable with this distribution, we can write $R\mid \theta, n \sim Bi(\theta,n)$ or $p(r\mid \theta, n) = Bi(\theta,n)$, where $r$ is the realization of $R$. We can drop the conditioning in $R\mid \theta, n$, so that we can write: given $R\sim Bi(\theta,n)$, what is $Pr(\theta_1 < \theta < \theta_2\mid r, n)$.
 
-## Steps in Bayesian analysis
+### Steps in Bayesian analysis
 
 \begin{enumerate}
 \item Given data, specify a \textbf{likelihood function} or \textbf{sampling density}.
@@ -21,7 +23,7 @@ Simulate parameters to get \textbf{samples from posterior distribution} of param
 Summarize parameter samples.
 \end{enumerate}
 
-## Comparison of Bayesian with frequentist methodology
+### Comparison of Bayesian with frequentist methodology
 
 \begin{enumerate}
 \item In Bayesian data analysis (BDA), the unknown parameter is treated as if it's a random variable, but in reality we are just using a probability density function (pdf) to characterize our uncertainty about parameter values. In frequentist methods, the unknown parameter is a point value. 
@@ -50,7 +52,7 @@ From the frequentist viewpoint, the 0.5 probability of a heads is a consequence 
 One argument one could make in favor of using Bayesian tools always is that most people who use frequentist methods just don't understand them. Indeed, hardly anyone really understands what a p-value is (many people treat $P(data\mid parameter)$ as if it is identical to $P(parameter\mid data)$), or what a 95\% confidence interval is (many people think a 95\% CI tells you the range over which the parameter is likely to lie with probability 0.95), etc. People abuse frequentist tools (such as publishing null results with low power experiments, not checking model assumptions, chasing after p-values, etc., etc.), and part of the reason for this abuse is that the concepts (e.g., confidence intervals) are very convoluted, or don't even address the research question.
 Regarding this last point, consider p-values. They tell you the probability that a null hypothesis is true given the data; p-values doesn't tell you anything about the actual \textbf{research} hypothesis. 
 
-## Statistics is the inverse of probability
+### Statistics is the inverse of probability
 
 In probability, we are given a probability density or mass function f(x)  (see below), and parameters, and we can deduce the probability.
 
@@ -63,7 +65,7 @@ In statistics, we are given a collection of events, and we want to discover the 
  
 For example, for reading times, we assume a random variable $X_i$ that comes from a normal distribution $N(0,\sigma^2)$ (the null hypothesis). We compute the most likely parameter value that generated the data, the mean of the random variable,\footnote{This is the maximum likelihood estimate.} and compute the probability of observing a value like the mean or something more extreme given the null hypothesis. I write this statement in short-hand as $P(data\mid parameter)$.
 
-# Brief review of probability theory and random variables
+## Brief review of probability theory and random variables
 
 We begin with a review of basic probability theory.
 The best book out there on probability theory that I know is the freely available book by Kerns.%\cite{kerns}
@@ -73,7 +75,7 @@ As Christensen et al.
 %\cite{christensen2011bayesian} 
 nicely put it, for most of our data analysis goals in this course, probability is simply the area under the curve in a probability distribution function. 
 
-## Kolmogorov Axioms of Probability
+### Kolmogorov Axioms of Probability
 
 I assume basic knowledge of set theory.
 Let $S$ be a set of events. For example, for a single coin toss, $S=\{A_1,A_2\}$, where $A_1$ is the event that we get a  heads, and $A_2$ the event that we get a tails.
@@ -101,7 +103,7 @@ and furthermore,
 \end{equation}
 \end{enumerate}
 
-### Three important propositions
+#### Three important propositions
 
 %We'll be using these later on a lot.
 
@@ -131,7 +133,7 @@ P(E \cup F) = P(E)+P(F)-P(EF)
 
 %This result will be needed for a (to me) totally non-obvious outcome in multivariate distributions.
   
-## Conditional Probability
+### Conditional Probability
 
 This is a central concept in this course.
 The conditional probability of event $B$ given event $A$, denoted $\mathbb{P}(B\mid A)$, is defined by
@@ -178,7 +180,7 @@ For any events $A$, $B$, and $C$ with $\mathbb{P}(A)>0$,
 
 \end{enumerate}
 
-##Independence of events
+###Independence of events
 
 [Taken nearly verbatim from Kerns.]
 
@@ -230,7 +232,7 @@ P(EF^c) =& P(E)[1-P(F)]\\
 \end{equation}
 
 
-## Bayes' rule
+### Bayes' rule
 
 [Quoted nearly verbatim from Kerns.]
 
@@ -260,7 +262,7 @@ Now remembering that  $\{B_{k}\}$ is a partition (i.e., mutually exclusive and e
 \mathbb{P}(A)=\sum_{k=1}^{n}\mathbb{P}(B_{k}\cap A)=\sum_{k=1}^{n}\mathbb{P}(B_{k})\mathbb{P}(A|B_{k}).
 \end{equation}
 
-## Random variables
+### Random variables
 
 A random variable $X$ is a function $X : S \rightarrow \mathbb{R}$ that associates to each outcome
 $\omega \in S$ exactly one number $X(\omega) = x$.
@@ -332,7 +334,7 @@ plot(function(x) normkernel(x), -3, 3,
       main = "Normal density",ylim=c(0,1),
               ylab="density",xlab="X")
 
-## area under the curve:
+### area under the curve:
 integrate(normkernel,lower=-Inf,upper=Inf)
 ```
 
@@ -349,7 +351,7 @@ plot(function(x) norm(x), -3, 3,
       main = "Normal density",ylim=c(0,1),
               ylab="density",xlab="X")
 
-## area under the curve:
+### area under the curve:
 integrate(norm,lower=-Inf,upper=Inf)
 ```
 
@@ -452,7 +454,7 @@ $F$ is the \textbf{cumulative distribution function}. Differentiating both sides
 
 The density (PDF) is the derivative of the CDF. 
 
-### Some basic results concerning random variables
+#### Some basic results concerning random variables
 
 \begin{enumerate}
 	\item \begin{equation}
@@ -478,7 +480,7 @@ The density (PDF) is the derivative of the CDF.
 
 So, so far, we know what a random variable is, and we know that by definition it has a pdf and a cdf associated with it. 
 
-## What you can do with a pdf
+### What you can do with a pdf
 
 You can:
 
@@ -525,7 +527,7 @@ pnorm(1)-pnorm(0)
 
 \end{enumerate}
 
-## Some basic facts about expectation and variance
+### Some basic facts about expectation and variance
 
 \begin{enumerate}
 \item Computing expectation:
@@ -632,9 +634,9 @@ Var(X-Y)=Var(X) + Var(Y) -2 Cov (X,Y)
 
 \end{enumerate}
 
-## Three common and important distributions
+### Three common and important distributions
 
-### Binomial distribution
+#### Binomial distribution
 
 If we have $x$ successes in $n$ trials, given a success probability $p$ for each trial. If $x \sim Bin(n,p)$.
 
@@ -649,17 +651,17 @@ The mean is $np$ and the variance $np(1-p)$.
 When $n=1$ we have the Bernoulli distribution.
 
 \begin{verbatim}
-##pmf:
+###pmf:
 dbinom(x, size, prob, log = FALSE)
-## cdf:
+### cdf:
 pbinom(q, size, prob, lower.tail = TRUE, log.p = FALSE)
-## quantiles:
+### quantiles:
 qbinom(p, size, prob, lower.tail = TRUE, log.p = FALSE)
-## pseudo-random generation of samples:
+### pseudo-random generation of samples:
 rbinom(n, size, prob)
 \end{verbatim}
 
-### Uniform random variable
+#### Uniform random variable
 
 A random variable $(X)$ with the continuous uniform distribution on the interval $(\alpha,\beta)$ has PDF
 
@@ -698,7 +700,7 @@ qunif(p, min = 0, max = 1, lower.tail = TRUE, log.p = FALSE)
 runif(n, min = 0, max = 1)
 \end{verbatim}
 
-### Normal random variable
+#### Normal random variable
 
 \begin{equation}
 f_{X}(x)=\frac{1}{\sigma\sqrt{2\pi}}e^{ \frac{-(x-\mu)^{2}}{2\sigma^{2}}},\quad -\infty < x < \infty.
@@ -831,9 +833,9 @@ Given $X\sim N(10,16)$, write distribution of $\bar{X}$, where $n=4$. Since $SE=
 
 
 
-# Important probability distributions
+## Important probability distributions
 
-## Multinomial coefficients and multinomial distributions
+### Multinomial coefficients and multinomial distributions
 
 [Taken almost verbatim from Kerns, with some additional stuff from Ross.]
 
@@ -872,7 +874,7 @@ f_{X_{1},\ldots,X_{k}}(x_{1},\ldots,x_{k}) & = & {9 \choose 3\,2\,2\,1\,1\,0}\, 
 
 Answer: $\frac{9!}{3!2!2!} \left(\frac{1}{6}\right)^9$
 
-## The Poisson distribution
+### The Poisson distribution
 
 As Kerns puts it (I quote him nearly exactly, up to the definition):
 
@@ -893,7 +895,7 @@ For us, I suppose one application might be in eye tracking: modeling number of f
 	\end{equation}
 \end{quote}
 
-## Geometric distribution
+### Geometric distribution
 
 From Ross (page 155): %\cite{RossProb}:
 
@@ -929,7 +931,7 @@ Var(X) = \frac{1-p}{p^2}
 
 For proofs, see Ross \cite{RossProb} (pages 156-157).
 
-## Exponential random variables
+### Exponential random variables
 
 For some $\lambda > 0$, 
 
@@ -1014,7 +1016,7 @@ var(X) = E[X^2] - (E[X])^2	=  \frac{2}{\lambda^2} -  (\frac{1}{\lambda})^2 = \fr
 \end{equation*}
 
 
-## Gamma distribution
+### Gamma distribution
 
 [The text is an amalgam of
  Kerns and Ross
@@ -1096,7 +1098,7 @@ Var(X)=\frac{\alpha}{\lambda^2}
 
 
 
-## Beta distribution
+### Beta distribution
 
 This is a generalization of the continuous uniform distribution.
 
@@ -1139,7 +1141,7 @@ E[X]=\frac{a}{a+b}\mbox{ and }Var(X)=\frac{ab}{\left(a+b\right)^{2}\left(a+b+1\r
 
 This distribution is going to turn up a lot in Bayesian data analysis.
 
-## $t$ distribution
+### $t$ distribution
 
 A random variable $X$ with PDF
 
@@ -1154,9 +1156,9 @@ We will just write:
 
 $X\sim t(\mu,\sigma^2,r)$, where $r$ is the degrees of freedom $(n-1)$, where $n$ is sample size.
 
-# Jointly distributed random variables
+## Jointly distributed random variables
 
-## Discrete case
+### Discrete case
 
 [This section is an extract from Kerns.]
 
@@ -1222,7 +1224,7 @@ This form is a necessary condition for $X$ and $Y$ to be \textbf{independent} (o
 
 \textbf{Example 2}: see very involved example 7.2 in Kerns, worth study.
 
-## Continuous case
+### Continuous case
 
 For random variables $X$ and $y$, the \textbf{joint cumulative pdf} is
 
@@ -1295,7 +1297,7 @@ P(a<X<a+da,b<Y<b+db)=\int_b^{d+db}\int_a^{a+da} f(x,y)\, dx\, dy \approx f(a,b) 
 
 Hence, $f(x,y)$ is a measure of how probable it is that the random vector $(X,Y)$ will be near $(a,b)$.
 
-## Marginal probability distribution functions}
+### Marginal probability distribution functions
 
 If X and Y are jointly continuous, they are individually continuous, and their PDFs are:
 
@@ -1320,7 +1322,7 @@ Similarly:
 f_Y(y) =  \int_{-\infty}^{\infty} f(x,y)\, dx		
 \end{equation}
 
-## Independent random variables
+### Independent random variables
 
 Random variables $X$ and $Y$ are independent iff, for any two sets of real numbers $A$ and $B$:
 
@@ -1362,7 +1364,7 @@ for $0 < y < 1$.
 In this example the joint support set was a rectangle $[0,1]\times[0,1]$, but it turns out that $X$ and $Y$ are not independent. 
 This is because $\frac{6}{5}\left(x+y^{2}\right)$ cannot be stated as a product of two terms ($f_X(x)f_Y(y)$).
 
-## Sums of independent random variables
+### Sums of independent random variables
 
 [Taken nearly verbatim from Ross.]
 
@@ -1395,9 +1397,9 @@ f_{X+Y} =& \frac{d}{dx}\int_{-\infty}^{\infty}F_X(a-y) f_Y(y)\, dy	\\
 \end{equation}
 
 
-## Conditional distributions
+### Conditional distributions
 
-### Discrete case
+#### Discrete case
 
 Recall that the conditional probability of $B$ given $A$, denoted $\mathbb{P}(B\mid A)$, is defined by
 
@@ -1436,7 +1438,7 @@ p_{X\mid Y}(x\mid y) = P(X=x)=p_X(x)
 
 See the examples starting p.\ 264 of Ross.
 
-### Continuous case
+#### Continuous case
 
 [Taken almost verbatim from Ross.]
 
@@ -1457,7 +1459,7 @@ f_{X\mid Y}(x\mid y)\, dx =& \frac{f(x,y)}{f_Y(y)} \frac{dxdy}{dy}\\
 \end{split}	
 \end{equation}
 
-## Joint and marginal expectation
+### Joint and marginal expectation
 
 [Taken nearly verbatim from Kerns.]
 
@@ -1476,7 +1478,7 @@ Continuous case:
 \end{equation}
 
 
-## Covariance and correlation
+### Covariance and correlation
 
 There are two very special cases of joint expectation: the \textbf{covariance} and the \textbf{correlation}. These are measures which help us quantify the dependence between $X$ and $Y$. 
 
@@ -1527,7 +1529,7 @@ which is 13/50. Therefore the covariance of $(X,Y)$ is
 \mbox{Cov}(X,Y)=\frac{13}{50}-\left(\frac{3}{5}\right)\left(\frac{9}{20}\right)=-\frac{1}{100}.
 \]
 
-## Conditional expectation
+### Conditional expectation
 
 Recall that
 
@@ -1588,7 +1590,7 @@ E[X] = \underset{y}{\overset{}{\sum}} E[X\mid Y = y] P(Y=y)
 \end{equation}
 
 
-## Multivariate normal distributions
+### Multivariate normal distributions
 
 
 
@@ -1670,11 +1672,11 @@ for(i in 1:50){
 ```
 
 
-# Maximum likelihood estimation
+## Maximum likelihood estimation
 
 Here, we look at the sample values and then choose as our estimates of the unknown parameters the values for which the probability or probability density of getting the sample values is a maximum. 
 
-## Discrete case
+### Discrete case
 
 Suppose the observed sample values are $x_1, x_2,\dots, x_n$. The probability of getting them is
 
@@ -1685,7 +1687,7 @@ P(X_1=x_1,X_2=x_2,\dots,X_n=x_n) = f(X_1=x_1,X_2=x_2,\dots,X_n=x_n;\theta)
 \noindent
 i.e., the function $f$ is the value of the joint probability \textbf{distribution} of the random variables $X_1,\dots,X_n$ at $X_1=x_1,\dots,X_n=x_n$. Since the sample values have been observed and are fixed, $f(x_1,\dots,x_n;\theta)$ is a function of $\theta$. The function $f$ is called a \textbf{likelihood function}.
 
-## Continuous case
+### Continuous case
 
 Here, $f$ is the joint probability \textbf{density}, the rest is the same as above.
 
@@ -1704,7 +1706,7 @@ for values of $\theta$ within a given domain. Here, $f(X_1=x_1,X_2=x_2,\dots,X_n
 So, the method of maximum likelihood consists of maximizing the likelihood function with respect to $\theta$. The value of $\theta$ that maximizes the likelihood function is the \textbf{MLE} (maximum likelihood estimate) of $\theta$.
 
 
-## Finding maximum likelihood estimates for different distributions
+### Finding maximum likelihood estimates for different distributions
 
 **Example 1**
 
@@ -1869,7 +1871,7 @@ Differentiating:
 \hat p = \frac{1}{\bar{x}}  
 \end{equation}
 
-## Visualizing likelihood and maximum log likelihood for normal
+### Visualizing likelihood and maximum log likelihood for normal
 
 For simplicity consider the case where $N(\mu=0,\sigma^2=1)$.
 
@@ -1885,7 +1887,7 @@ plot(function(x) dnorm(x,log=T), -3, 3,
 abline(h=log(0.4))
 ```
 
-## Obtaining standard errors
+### Obtaining standard errors
 
 Once we have found a maximum likelihood estimate, say of $p$ in the binomial distribution, we need a way to a quantify our uncertainty about how good $\hat p$ is at estimating the population parameter $p$.
 
@@ -2105,9 +2107,9 @@ $\hat \sigma^2 \sqrt{2/n}$. The estimated standard error of the sample mean shou
 
 I know that this is heavy going; luckily for us, for our limited purposes we can always let R do the work, as I show below. 
 
-## MLE using R
+### MLE using R
 
-### One-parameter case
+#### One-parameter case
 
 \textbf{Example 1: Estimating $\lambda$ in the Box-Cox transform}
 
@@ -2272,11 +2274,11 @@ And we compute standard errors by taking the square root of the diagonals of the
 These values match our standard calculations:
 
 ```{r}
-## compute estimated standard error from data:
+### compute estimated standard error from data:
 sd(data)/sqrt(100)
 ```
 
-### Using optim in the one-parameter case
+#### Using optim in the one-parameter case
 
 Note that we could not get the Hessian in the one-parameter case using optimize (for the binomial). We can get the $1\times 1$ Hessian by using optim in the binomial case, but we have to make sure that our syntax is correct. 
 
@@ -2288,7 +2290,7 @@ negllbinom2 <- function(theta){
    -sum(dbinom(x, size = 1, prob = p,log=T)) 
 }
 
-## testing:
+### testing:
 negllbinom2(c(.1))
 
 opt.vals.default<-optim(theta<-c(.5),
@@ -2296,7 +2298,7 @@ opt.vals.default<-optim(theta<-c(.5),
       method="Brent",                  
       hessian=TRUE,lower=0,upper=1)
 
-## SE:
+### SE:
 sqrt(solve(opt.vals.default$hessian))
 ```
 
@@ -2312,7 +2314,7 @@ This calculation and the number that the optimization procedure delivers coincid
 sqrt((0.4 * (1-0.4))/10)
 ```
 
-# Introduction to Bayesian data analysis
+## Introduction to Bayesian data analysis
 
 Recall Bayes' rule:
 
@@ -2380,15 +2382,15 @@ Given the likelihood $f(x\mid \theta)$, if the prior $f(\theta)$ results in a po
 \end{quote}
 
 
-## Example 1: Binomial Likelihood, Beta prior, Beta posterior 
+### Example 1: Binomial Likelihood, Beta prior, Beta posterior 
 
 This is a contrived example, just meant to  provide us with an entry point into Bayesian data analysis. Suppose that an individual with aphasia answered 46 out of 100 questions correctly in a particular sentence comprehension task. The research question is, what is the probability that their average response is greater than 0.5, i.e., above chance.
 
 The likelihood function will tell us $P(\hbox{data}\mid \theta)$:
 
-<<>>=
+```{r}
 dbinom(46, 100, 0.5)
-@
+```
 
 Note that 
 
@@ -2402,7 +2404,7 @@ So, to get the posterior, we just need to work out a prior distribution $f(\thet
 f(\theta\mid \hbox{data}) \propto f(\hbox{data}\mid \theta) f(\theta)
 \end{equation}
 
-For the prior, we need a distribution that can represent our uncertainty about the probabiliyt p of success. The Beta distribution (a generalization of the continuous uniform distribution) is commonly used as prior for proportions. We say that the Beta distribution is conjugate to the binomial density; i.e., the two densities have similar functional forms.
+For the prior, we need a distribution that can represent our uncertainty about the probabiliy p of success. The Beta distribution (a generalization of the continuous uniform distribution) is commonly used as prior for proportions. We say that the Beta distribution is conjugate to the binomial density; i.e., the two densities have similar functional forms.
 
 The pdf is\footnote{Incidentally, there is a connection between the beta and the gamma:
 
@@ -2526,7 +2528,7 @@ plot(function(x)
 ```
 
 
-## Example 2: Poisson Likelihood, Gamma prior, Gamma posterior
+### Example 2: Poisson Likelihood, Gamma prior, Gamma posterior
 
 
 This is also a contrived example. Suppose we are modeling the number of times that a 
@@ -2622,7 +2624,7 @@ We can find a constant $k$ such that the above is a proper probability density f
 Thus, the posterior has the form of  a Gamma distribution with parameters 
 $a^{*}=a+\sum_i^{n} x_i, b^{*}=b+n$. Hence the Gamma distribution is a conjugate prior for the Poisson.
 
-### Concrete example given data
+#### Concrete example given data
 
 Suppose we know that the number of ``the'' utterances is $115, 97, 79, 131$. We can derive the posterior distribution as follows.
 
@@ -2641,7 +2643,7 @@ The mean and variance of this distribution can be computed using the fact that t
 
 
 ```{r}
-## load data:
+### load data:
 data<-c(115,97,79,131)
 
 a.star<-function(a,data){
@@ -2655,9 +2657,9 @@ b.star<-function(b,n){
 new.a<-a.star(10000/225,data)
 new.b<-b.star(100/225,length(data))
 
-## post. mean
+### post. mean
 post.mean<-new.a/new.b 
-## post. var:
+### post. var:
 post.var<-new.a/(new.b^2) 
 
 new.data<-c(200)
@@ -2665,13 +2667,13 @@ new.data<-c(200)
 new.a.2<-a.star(new.a,new.data)
 new.b.2<-b.star(new.b,length(new.data))
 
-## new mean
+### new mean
 new.post.mean<-new.a.2/new.b.2
-## new var:
+### new var:
 new.post.var<-new.a.2/(new.b.2^2)
 ```
 
-### The posterior is a weighted mean of prior and likelihood
+#### The posterior is a weighted mean of prior and likelihood
 
 We can express the posterior mean as a weighted sum of the prior mean and the maximum likelihood estimate of $\theta$.
 
@@ -2730,9 +2732,9 @@ as $n$ approaches infinity, the posterior variance will approach zero: more data
  
  We saw two examples where we can do the computations to derive the posterior using simple algebra. There are several other such simple cases (see the Lynch textbook for more). However, in realistic data analysis settings, we cannot specify the posterior distribution as a particular density. For such cases, we need to use computer software so that we can sample from the posterior distribution.
 
-# Introduction to Gibbs sampling 
+## Introduction to Gibbs sampling 
 
-## Monte Carlo integration
+### Monte Carlo integration
 
 It sounds fancy, but basically this amounts to sampling from a distribution, and computing summaries like the mean. Formally, we calculate E(f(X)) by drawing samples $\{X_1,\dots,X_n\}$ and then approximating:
 
@@ -2753,7 +2755,7 @@ We can also compute quantities like $P(X<1.96)$ by sampling:
 
 ```{r}
 mean((x<1.96))
-## theoretical value:
+### theoretical value:
 pnorm(1.96)
 ```
 
@@ -2783,14 +2785,14 @@ x<-rep(NA,nsim)
 y<-rep(NA,nsim)
 x[1]<-rnorm(1) ## initialize x
 for(i in 2:nsim){
-## draw i-th value based on i-1-th value:  
+### draw i-th value based on i-1-th value:  
 y[i]<-rnorm(1,mean=x[i-1],sd=1)
 x[i]<-y[i]
 }
 plot(1:nsim,y,type="l")
 ```
 
-## Monte Carlo sampling
+### Monte Carlo sampling
 
 In the example with the Beta distribution in the last section, we can sample from the posterior distribution easily using a built-in R function:
 
@@ -2807,9 +2809,9 @@ table(x>0.5)[2]/ sum(table(x>0.5))
 Or we can compute a 95\% interval within which we are 95\% sure that the true parameter value lies (recall all the convoluted discussion about 95\% CIs in the frequentist setting!):
 
 ```{r}
-##lower bound:
+###lower bound:
 quantile(x,0.025)
-## upper bound:
+### upper bound:
 quantile(x,0.975)
 ```
 
@@ -2830,7 +2832,7 @@ The rest of this section elaborates on this statement.
 
 First, let's look at two relatively simple methods of sampling.
 
-## The inversion method
+### The inversion method
 
 This method works when we can know the closed form of the pdf we want to simulate from and can derive the inverse of that function.
 
@@ -2856,7 +2858,7 @@ z<-(1/2) * (-3 + sqrt(160*u +9))
 
 This method can't be used if we can't find the inverse, and it can't be used with multivariate distributions.
 
-## The rejection method
+### The rejection method
 
 If $F^{-1}(u)$ can't be computed, we sample from $f(x)$ as follows:
 
@@ -2895,8 +2897,8 @@ R=f(x)/mg(z) > u
 \end{equation}
 
 ```{r}
-#R program for rejection method of sampling 
-## From Lynch book, adapted by SV.
+##R program for rejection method of sampling 
+### From Lynch book, adapted by SV.
 count<-0
 k<-1 
 accepted<-rep(NA,1000) 
@@ -2929,7 +2931,7 @@ lines(x,fn(x))
 
 
 ```{r}
-## acceptance rate:
+### acceptance rate:
 table(is.na(rejected))[2]/
   sum(table(is.na(rejected)))
 ```
@@ -2941,7 +2943,7 @@ Rejection sampling can be used with multivariate distributions.
 Some limitations of rejection sampling: 
 finding an envelope function may be difficult; the acceptance rate would be low if the constant m is set too high and/or if the envelope function is too high relative to f(x), making the algorithm inefficient.   
 
-## Monte Carlo Markov Chain: The Gibbs sampling algorithm
+### Monte Carlo Markov Chain: The Gibbs sampling algorithm
 
 Let $\Theta$ be a vector of parameter values, let length of $\Theta$ be $k$. Let $j$ index the $j$-th iteration.
 
@@ -3007,8 +3009,8 @@ I leave that as an exercise; the solution is given in the code below.
 \end{enumerate}
 
 ```{r}
-#R program for Gibbs sampling using inversion method 
-## program by Scott Lynch, modified by SV:
+##R program for Gibbs sampling using inversion method 
+### program by Scott Lynch, modified by SV:
 x<-rep(NA,2000)
 y<-rep(NA,2000) 
 x[1]<- -5
@@ -3036,13 +3038,13 @@ persp(bivar.kde,phi=10,theta=90,shade=0,border=NA,
 
 A central insight here is that knowledge of the conditional distributions is enough to figure out (simulate from) the joint distribution, provided such a joint distribution exists. 
 
-## Gibbs sampling using rejection sampling
+### Gibbs sampling using rejection sampling
 
 Suppose the conditional distribution is not univariate--we might have conditional multivariate densities. Now we can't use inversion sampling. Another situation where we can't use inversion sampling is when $F^{-1}()$ can't be calculated even in one dimension (An example where the inversion sampling doesn't work is the bivariate normal; there is no way to compute the conditional CDF analytically).
 
 ```{r}
-#R program for Gibbs sampling using rejection sampling 
-## Program by Scott Lynch, modified by SV:
+##R program for Gibbs sampling using rejection sampling 
+### Program by Scott Lynch, modified by SV:
 x<-rep(NA,2000) 
 y<-rep(NA,2000) 
 x[1]<- -1
@@ -3052,7 +3054,7 @@ y[1]<- -1
 m<-25
 
 for(i in 2:2000){
-#sample from x | y using rejection sampling 
+##sample from x | y using rejection sampling 
   z<-0 
   while(z==0){ 
   u<-runif(1,min=0, max=2) 
@@ -3084,7 +3086,7 @@ persp(bivar.kde,phi=10,theta=90,shade=0,border=NA,
       (rejection sampling)")
 ```
 
-## More realistic example: Sampling from a bivariate density
+### More realistic example: Sampling from a bivariate density
 
 Let's try to sample from a bivariate normal distribution using Gibbs sampling. We could have just done it with a built-in function from the \texttt{MASS} package for this (see earlier material on bivariate distribution sampling using \texttt{mvrnorm} in these notes). But it's instructive to do it ``by hand''.
 
@@ -3103,14 +3105,14 @@ For simplicity we assume we have a bivariate normal, uncorrelated random variabl
 Here is my code:
 
 ```{r}
-## parameters:
+### parameters:
 mu.x<-0
 mu.y<-0
 sd.x<-1
 sd.y<-1
 rho<-0
 
-## Gibbs sampler:
+### Gibbs sampler:
 x<-rep(NA,2000)
 y<-rep(NA,2000) 
 x[1]<- -5
@@ -3137,7 +3139,7 @@ for(i in 1:100){
 persp(bivar.kde,phi=10,theta=i,shade=0,border=NA,
       main="Simulated bivariate normal density 
       using Gibbs sampling")
-#Sys.sleep(0.1)
+##Sys.sleep(0.1)
 }
 ```
 
@@ -3188,19 +3190,19 @@ mean(y[501:2000])
 Here is Scott Lynch's code, with conditional distributions specified up to proportionality:
 
 ```{r,eval=FALSE}
-#R program for Gibbs sampling from a bivariate normal pdf 
+##R program for Gibbs sampling from a bivariate normal pdf 
 x<-rep(NA,2000)
 y<-rep(NA,2000) 
 for(j in 2:2000)
 {
-#sampling from x|y 
+##sampling from x|y 
   x[j]=rnorm(1,mean=(.5*y[j-1]),sd=sqrt(1-.5*.5)) 
   #sampling from y|x 
   y[j]=rnorm(1,mean=(.5*x[j]),sd=sqrt(1-.5*.5))
 }
 ```
 
-## Sampling the parameters given the data
+### Sampling the parameters given the data
 
 The Bayesian approach is that, conditional on having data, we want to sample parameters. For this, we need to figure out the conditional density of the parameters given the data.
 
@@ -3231,11 +3233,11 @@ There are two ways, given the above equations:
 \item First sample a value for $\sigma^2$ conditional on $\mu$, then sample a value of $\mu$ conditional on the new value for $\sigma^2$, etc.
 \end{enumerate}
 
-### Example of first approach
+#### Example of first approach
 
 ```{r}
-#R: sampling from marginal for variance and conditional for mean 
-## code by Scott Lynch, slightly modified by SV:
+##R: sampling from marginal for variance and conditional for mean 
+### code by Scott Lynch, slightly modified by SV:
 x<-as.matrix(read.table("data/education.dat",
                         header=F)[,1])
 sig2<-rgamma(2000,(length(x)-1)/2 , 
@@ -3264,12 +3266,12 @@ hist(mu)
 hist(sig2)
 ```
 
-### Example of second approach
+#### Example of second approach
 
 Here, we sample $\mu$ and $\sigma^2$ sequentially from their conditional distributions.
 
 ```{r}
-#R: sampling from conditionals for both variance and mean
+##R: sampling from conditionals for both variance and mean
 x<-as.matrix(read.table("data/education.dat",
                         header=F)[,1]) 
 mu<-rep(0,2000)
@@ -3302,7 +3304,7 @@ persp(bivar.kde,phi=10,theta=45,shade=0,border=NA,
 ```
 
 
-## Summary of the story so far
+### Summary of the story so far
 
 This summary is taken, essentially verbatim but reworded a bit, from Lynch
 %\cite{lynch2007introduction} 
@@ -3323,7 +3325,7 @@ This summary is taken, essentially verbatim but reworded a bit, from Lynch
 \newpage
 
 
-\begin{qbox}{\section{Exercises}}
+\begin{qbox}{\subsection{Exercises}}
 
 \begin{enumerate}
   \item 
@@ -3369,18 +3371,18 @@ for each distribution.
 Plot the priors, likelihoods, and posterior distributions in the four Beta-Binomial cases discussed in the notes.
 
 ```{r,binomexample1,echo=F,include=F}
-##lik:
+###lik:
 plot(function(x) 
   dbeta(x,shape1=46,shape2=54),0,1,
               ylab="",xlab="X",col="red")
 
-## prior:
+### prior:
 plot(function(x) 
   dbeta(x,shape1=2,shape2=2), 0,1,
       main = "Prior",
               ylab="density",xlab="X",add=T,lty=2)
 
-## posterior
+### posterior
 plot(function(x) 
   dbeta(x,shape1=48,shape2=56), 0,1,
       main = "Posterior",
@@ -3395,10 +3397,8 @@ legend(0.1,6,legend=c("post","lik","prior"),
 
 \newpage
 
-# Further readings
+### Further readings
 
-## Online references
+#### Online references
 
 to-do 
-
-## References

@@ -494,8 +494,8 @@ bar on the participant's reaction time?
 
 ```{r, echo=F, results="hide"}
 beta_mean <- round(summary(fit_noreading_3)$summary["beta","mean"],2)
-beta_high <- round(summary(fit_noreading_3)$summary["beta","97.5%"],2)
 beta_low <- round(summary(fit_noreading_3)$summary["beta","2.5%"],2)
+beta_high <- round(summary(fit_noreading_3)$summary["beta","97.5%"],2)
 ```
 
 
@@ -907,4 +907,3 @@ Continues in the next page.
 
 <!-- https://cran.r-project.org/web/packages/bayesplot/vignettes/PPC.html -->
 
-## References
