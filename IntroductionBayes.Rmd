@@ -54,7 +54,7 @@ From the frequentist viewpoint, the 0.5 probability of a heads is a consequence 
 \end{enumerate}
 
 One argument one could make in favor of using Bayesian tools always is that most people who use frequentist methods just don't understand them. Indeed, hardly anyone really understands what a p-value is (many people treat $P(data\mid parameter)$ as if it is identical to $P(parameter\mid data)$), or what a 95\% confidence interval is (many people think a 95\% CI tells you the range over which the parameter is likely to lie with probability 0.95), etc. People abuse frequentist tools (such as publishing null results with low power experiments, not checking model assumptions, chasing after p-values, etc., etc.), and part of the reason for this abuse is that the concepts (e.g., confidence intervals) are very convoluted, or don't even address the research question.
-Regarding this last point, consider p-values. They tell you the probability that a null hypothesis is true given the data; p-values doesn't tell you anything about the actual \textbf{research} hypothesis. 
+Regarding this last point, consider p-values. They tell you the probability of observing a statistic (t-value) or something more extreme assuming that a null hypothesis is true; p-values don't tell you anything about the actual \textbf{research} hypothesis. 
 
 ### Statistics is the inverse of probability
 
