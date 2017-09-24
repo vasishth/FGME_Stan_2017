@@ -736,7 +736,7 @@ There's something wrong in the estimation of `tau_u2`. This parameter is special
 
 \begin{nbox}{A simple re-parametrization}
 
-The parser can explore the parameter space more easily if it doesn't have to worry about the scale. We want to assume the following
+The sampler can explore the parameter space more easily if it doesn't have to worry about the scale. We want to assume the following
 
 \begin{equation}
 \mathbf{u}_{2} \sim Normal(0, \tau_{u_2})
